@@ -129,6 +129,13 @@ td.num{text-align:right}
 @keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 body.noFx h1.title,body.noFx #splash h1{animation:none}
 
+[hidden]{display:none!important}
+.code{font-size:clamp(2.4rem,14vw,4rem);letter-spacing:.35em;padding-left:.35em;text-align:center;color:var(--blood-hi);text-shadow:0 0 18px var(--blood);margin:8px 0 4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.chip{border:1px solid var(--blood);padding:6px 12px;background:var(--panel2)}
+.chip.me{background:var(--blood)}
+.chip small{color:var(--dim);margin-left:6px}
+
 /* ---------- Footer ---------- */
 #footer{
   position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
@@ -160,7 +167,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   <section class="screen" id="menu">
     <h1 class="title">QUI EST LE PLUS...</h1>
     <p class="sub">// le jeu où vos amis vous jugent //</p>
-    <button class="btn primary" data-go="players">Jouer</button>
+    <button class="btn primary" data-go="players">Jouer (un seul téléphone)</button>
+    <button class="btn primary" id="mpBtn" data-go="mpMenu" hidden>Multijoueur : héberger / rejoindre</button>
     <button class="btn" data-go="modes">Modes de jeu</button>
     <button class="btn" data-go="settings">Paramètres</button>
     <button class="btn" data-go="admin">Panel Admin</button>
@@ -252,7 +260,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <h2>Prochainement</h2>
     <div class="box"><h3>🩸 Mode Cauchemar</h3><p class="empty">Des questions qui feront trembler vos amitiés... Bientôt.</p></div>
     <div class="box"><h3>🕯 Mode Soirée Hantée</h3><p class="empty">Défis, gages et sentences. Bientôt.</p></div>
-    <div class="box"><h3>👁 Multijoueur en ligne</h3><p class="empty">Votez à distance, chacun sur son téléphone. Bientôt.</p></div>
+    <div class="box"><h3>👁 Salons publics</h3><p class="empty">Rejoignez des inconnus sans code. Bientôt.</p></div>
     <div class="box"><h3>🔪 Questions personnalisées partagées</h3><p class="empty">Exportez et importez vos pires questions. Bientôt.</p></div>
     <button class="btn ghost back" data-go="menu">← Retour</button>
   </section>
@@ -288,6 +296,84 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     </div>
     <button class="btn primary" id="replay">Rejouer</button>
     <button class="btn" data-go="menu">Menu principal</button>
+  </section>
+
+  <!-- MULTIJOUEUR : MENU -->
+  <section class="screen" id="mpMenu">
+    <h2>Multijoueur</h2>
+    <p class="sub" style="text-align:left">Chacun joue sur son téléphone. L'hôte crée un salon, les autres le rejoignent avec le code à 4 lettres.</p>
+    <div class="box">
+      <label for="mpName">Ton prénom</label>
+      <input type="text" id="mpName" maxlength="20" placeholder="Ton prénom" autocomplete="off">
+    </div>
+    <p class="sub" id="mpWarn" style="color:var(--blood-hi)" hidden></p>
+    <button class="btn primary" id="mpCreate">Créer un salon (je suis l'hôte)</button>
+    <div class="box">
+      <label for="mpCode">Code du salon</label>
+      <input type="text" id="mpCode" maxlength="4" placeholder="ABCD" autocapitalize="characters" autocomplete="off" style="letter-spacing:.5em;text-align:center;font-size:1.5rem">
+      <button class="btn" id="mpJoin">Rejoindre</button>
+    </div>
+    <button class="btn" id="mpResume" hidden></button>
+    <button class="btn ghost back" data-go="menu">← Retour</button>
+  </section>
+
+  <!-- MULTIJOUEUR : SALON -->
+  <section class="screen" id="mpLobby">
+    <h2>Salon</h2>
+    <p class="sub" style="margin-bottom:0">Code à donner à tes potes</p>
+    <div class="code" id="lobbyCode"></div>
+    <div class="box">
+      <h3>Joueurs (<span id="lobbyCount">0</span>)</h3>
+      <div class="chips" id="lobbyPlayers"></div>
+      <p class="sub" id="lobbyInfo" style="text-align:left;margin:8px 0 0"></p>
+    </div>
+    <div id="lobbyHost">
+      <div class="box">
+        <label for="lobbyMode">Mode de jeu</label>
+        <select id="lobbyMode"></select>
+        <label for="lobbyRounds">Nombre de manches</label>
+        <select id="lobbyRounds"><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select>
+      </div>
+      <button class="btn primary" id="lobbyStart">Lancer la partie</button>
+    </div>
+    <p class="sub" id="lobbyWait">En attente de l'hôte...</p>
+    <button class="btn ghost mpLeaveBtn">Quitter le salon</button>
+    <button class="btn ghost mpCloseBtn">Fermer le salon</button>
+  </section>
+
+  <!-- MULTIJOUEUR : VOTE -->
+  <section class="screen" id="mpVote">
+    <div class="hud"><span id="mpHud"></span><span id="mpHudMode"></span></div>
+    <div class="question"><em>QUI EST LE PLUS...</em><span id="mpQ"></span></div>
+    <p class="sub" id="mpVoteHint"></p>
+    <div id="mpVoteBtns"></div>
+    <button class="btn" id="mpForce">Forcer le résultat (hôte)</button>
+    <button class="btn ghost back mpLeaveBtn">Quitter la partie</button>
+  </section>
+
+  <!-- MULTIJOUEUR : RÉSULTAT -->
+  <section class="screen" id="mpResult">
+    <div class="hud"><span id="mpHud2"></span><span id="mpHudMode2"></span></div>
+    <div class="question"><em>QUI EST LE PLUS...</em><span id="mpQ2"></span></div>
+    <div id="mpBars"></div>
+    <div class="verdict" id="mpVerdict"></div>
+    <button class="btn primary" id="mpNext">Question suivante</button>
+    <p class="sub" id="mpNextWait">En attente de l'hôte...</p>
+  </section>
+
+  <!-- MULTIJOUEUR : FINAL -->
+  <section class="screen" id="mpFinal">
+    <h2>Verdict final</h2>
+    <div class="verdict" id="mpFinalVerdict"></div>
+    <div class="box">
+      <table>
+        <thead><tr><th>Joueur</th><th class="num">Titres</th><th class="num">Votes reçus</th></tr></thead>
+        <tbody id="mpFinalRows"></tbody>
+      </table>
+    </div>
+    <button class="btn primary" id="mpReplay">Rejouer dans ce salon (hôte)</button>
+    <button class="btn ghost mpLeaveBtn">Quitter le salon</button>
+    <button class="btn ghost mpCloseBtn">Fermer le salon</button>
   </section>
 
 </div>
@@ -419,6 +505,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     if (id === "modes") renderModes();
     if (id === "settings") renderSettings();
     if (id === "admin") renderAdmin();
+    if (id === "mpMenu") renderMpMenu();
   }
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-go]");
@@ -637,6 +724,255 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       ? list.map((q, i) => `<div class="qrow"><span>${esc(q)}</span><button class="btn small ghost" data-delq="${i}">✕</button></div>`).join("")
       : '<p class="empty">Aucune question dans ce mode.</p>';
   }
+
+  /* ---------- Multijoueur (capacité db de l'artefact) ---------- */
+  const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  let DB = null, myId = null, MP = null, canWrite = null;
+  const localId = () => {
+    let v = null;
+    try { v = localStorage.getItem("qelp_uid"); } catch {}
+    if (!v) { v = "g" + Math.random().toString(36).slice(2, 10); try { localStorage.setItem("qelp_uid", v); } catch {} }
+    return v;
+  };
+  (async () => {
+    try {
+      if (!window.claude || !claude.use) return;
+      const [db, user] = await Promise.all([claude.use("db"), claude.use("user")]);
+      if (!db) return;
+      DB = db;
+      myId = (user && await user.id()) || localId();
+      canWrite = user ? await user.can("data.write") : null;
+      $("#mpBtn").hidden = false;
+    } catch {}
+  })();
+
+  $("#lobbyMode").innerHTML = Object.entries(MODES).map(([k, m]) => `<option value="${k}">${esc(m.name)}</option>`).join("");
+  const mpErr = e => toast(e && e.code === "invalid_argument" ? "Écriture refusée : il faut être Contributeur" : "Connexion impossible, réessaie");
+  const forget = () => { try { localStorage.removeItem("qelp_room"); } catch {} };
+
+  function renderMpMenu() {
+    $("#mpName").value = load("qelp_myname", "");
+    $("#mpWarn").hidden = canWrite !== false;
+    $("#mpWarn").textContent = "Ton accès est en lecture seule : demande à l'hôte de te passer en Contributeur pour jouer en ligne.";
+    const r = load("qelp_room", null);
+    $("#mpResume").hidden = !r;
+    if (r) $("#mpResume").textContent = "Reprendre le salon " + r;
+  }
+  const myName = () => { const n = $("#mpName").value.trim(); save("qelp_myname", n); return n; };
+
+  $("#mpCreate").onclick = async () => {
+    const name = myName(); if (!name) { toast("Entre ton prénom"); return; }
+    try {
+      let code = null;
+      for (let i = 0; i < 6 && !code; i++) {
+        const c = Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
+        if (!(await DB.doc("rooms/" + c).get()).exists) code = c;
+      }
+      if (!code) { toast("Réessaie"); return; }
+      await DB.doc("rooms/" + code).set({
+        code, hostId: myId, status: "lobby", mode, rounds: settings.rounds,
+        game: 0, round: 0, qs: [], titles: {}, received: {}, result: null, created: Date.now()
+      });
+      await DB.doc(`rooms/${code}/players/${myId}`).set({ name, joined: Date.now() });
+      enterRoom(code);
+    } catch (e) { mpErr(e); }
+  };
+  $("#mpJoin").onclick = () => {
+    const code = $("#mpCode").value.trim().toUpperCase();
+    if (code.length !== 4) { toast("Le code a 4 lettres"); return; }
+    joinRoom(code, myName());
+  };
+  $("#mpResume").onclick = () => joinRoom(load("qelp_room", ""), "");
+
+  async function joinRoom(code, name) {
+    try {
+      const rs = await DB.doc("rooms/" + code).get();
+      if (!rs.exists) { toast("Code introuvable"); forget(); renderMpMenu(); return; }
+      const room = rs.data();
+      const me = await DB.doc(`rooms/${code}/players/${myId}`).get();
+      if (!me.exists) {
+        if (room.status !== "lobby") { toast("La partie a déjà commencé"); return; }
+        if (!name) { toast("Entre ton prénom"); return; }
+        const all = await DB.collection(`rooms/${code}/players`).get();
+        if (all.docs.some(d => String(d.data().name).toLowerCase() === name.toLowerCase())) { toast("Ce prénom est déjà pris"); return; }
+        if (all.size >= 12) { toast("Salon complet (12 max)"); return; }
+        await DB.doc(`rooms/${code}/players/${myId}`).set({ name, joined: Date.now() });
+      }
+      enterRoom(code);
+    } catch (e) { mpErr(e); }
+  }
+
+  function enterRoom(code) {
+    mpLeave(false);
+    save("qelp_room", code);
+    const m = MP = { code, room: null, players: {}, votes: {}, unsubs: [], host: false, busy: false, voting: false, closing: false };
+    const base = "rooms/" + code;
+    const err = () => toast("Connexion perdue avec le salon");
+    m.unsubs.push(DB.doc(base).onSnapshot(s => {
+      if (!s.exists) {
+        if (!m.closing) toast("Le salon a été fermé");
+        forget(); mpLeave(false); show("menu"); return;
+      }
+      m.room = s.data(); m.host = m.room.hostId === myId;
+      mpRender(); hostCheck();
+    }, err));
+    m.unsubs.push(DB.collection(base + "/players").onSnapshot(q => {
+      m.players = Object.fromEntries(q.docs.map(d => [d.id, d.data()]));
+      mpRender(); hostCheck();
+    }, err));
+    m.unsubs.push(DB.collection(base + "/votes").onSnapshot(q => {
+      m.votes = Object.fromEntries(q.docs.map(d => [d.id, d.data()]));
+      mpRender(); hostCheck();
+    }, err));
+  }
+  function mpLeave(erase) {
+    if (MP) MP.unsubs.forEach(u => { try { u(); } catch {} });
+    MP = null;
+    if (erase) forget();
+  }
+
+  const pname = id => esc((MP.players[id] || {}).name || "?");
+  const showIf = id => { if (!$("#" + id).classList.contains("active")) show(id); };
+  const validVotes = () => {
+    const r = MP.room;
+    return Object.entries(MP.votes).filter(([id, v]) => MP.players[id] && v.game === r.game && v.round === r.round);
+  };
+
+  function mpRender() {
+    if (!MP || !MP.room) return;
+    document.querySelectorAll(".mpCloseBtn").forEach(b => b.hidden = !MP.host);
+    const st = MP.room.status;
+    if (st === "lobby") renderLobby();
+    else if (st === "vote") renderMpVote();
+    else if (st === "result") renderMpResult();
+    else if (st === "final") renderMpFinal();
+  }
+
+  function renderLobby() {
+    const r = MP.room, ids = Object.keys(MP.players);
+    $("#lobbyCode").textContent = r.code;
+    $("#lobbyCount").textContent = ids.length;
+    $("#lobbyPlayers").innerHTML = ids.map(id =>
+      `<span class="chip ${id === myId ? "me" : ""}">${pname(id)}${id === r.hostId ? "<small>hôte</small>" : ""}</span>`).join("");
+    $("#lobbyInfo").textContent = `${(MODES[r.mode] || {}).name || ""} · ${r.rounds} manches`;
+    $("#lobbyHost").hidden = !MP.host;
+    $("#lobbyWait").hidden = MP.host;
+    $("#lobbyMode").value = r.mode;
+    $("#lobbyRounds").value = String(r.rounds);
+    $("#lobbyStart").disabled = ids.length < 2;
+    $("#lobbyStart").textContent = ids.length < 2 ? "Il faut au moins 2 joueurs" : "Lancer la partie";
+    showIf("mpLobby");
+  }
+  $("#lobbyMode").onchange = e => MP && MP.host && DB.doc("rooms/" + MP.code).update({ mode: e.target.value }).catch(mpErr);
+  $("#lobbyRounds").onchange = e => MP && MP.host && DB.doc("rooms/" + MP.code).update({ rounds: +e.target.value }).catch(mpErr);
+  $("#lobbyStart").onclick = async () => {
+    const m = MP; if (!m || !m.host) return;
+    const r = m.room, pool = questions[r.mode] || [];
+    if (!pool.length) { toast("Ce mode n'a aucune question (voir Panel Admin)"); return; }
+    if (Object.keys(m.players).length < 2) return;
+    try {
+      await DB.doc("rooms/" + m.code).set({
+        ...r, status: "vote", game: Date.now(), round: 0,
+        qs: shuffle(pool).slice(0, Math.min(r.rounds, pool.length)),
+        titles: {}, received: {}, result: null
+      });
+    } catch (e) { mpErr(e); }
+  };
+
+  function renderMpVote() {
+    const r = MP.room, ids = Object.keys(MP.players), vv = validVotes();
+    const mine = vv.some(([id]) => id === myId);
+    $("#mpHud").textContent = `Manche ${r.round + 1}/${r.qs.length}`;
+    $("#mpHudMode").textContent = (MODES[r.mode] || {}).name || "";
+    $("#mpQ").textContent = r.qs[r.round];
+    $("#mpVoteHint").textContent = mine ? `Vote enregistré. En attente des autres (${vv.length}/${ids.length})...` : "Choisis en secret.";
+    $("#mpVoteBtns").innerHTML = (mine || !MP.players[myId]) ? "" :
+      ids.map(id => `<button class="btn" data-mpv="${esc(id)}">${pname(id)}</button>`).join("");
+    $("#mpForce").hidden = !(MP.host && vv.length > 0);
+    showIf("mpVote");
+  }
+  $("#mpVoteBtns").addEventListener("click", async e => {
+    const b = e.target.closest("[data-mpv]"), m = MP;
+    if (!b || !m || m.voting) return;
+    m.voting = true;
+    try {
+      await DB.doc(`rooms/${m.code}/votes/${myId}`).set({ game: m.room.game, round: m.room.round, target: b.dataset.mpv });
+      vibrate(40);
+    } catch (err) { mpErr(err); }
+    m.voting = false;
+  });
+  $("#mpForce").onclick = () => finishRound();
+
+  function hostCheck() {
+    if (!MP || !MP.host || !MP.room || MP.room.status !== "vote") return;
+    const total = Object.keys(MP.players).length;
+    if (total >= 2 && validVotes().length >= total) finishRound();
+  }
+  async function finishRound() {
+    const m = MP; if (!m || !m.host || m.busy || m.room.status !== "vote") return;
+    m.busy = true;
+    try {
+      const r = m.room, counts = {};
+      Object.keys(m.players).forEach(id => counts[id] = 0);
+      validVotes().forEach(([, v]) => { if (v.target in counts) counts[v.target]++; });
+      const max = Math.max(...Object.values(counts));
+      const winners = Object.keys(counts).filter(id => counts[id] === max);
+      const titles = { ...(r.titles || {}) }, received = { ...(r.received || {}) };
+      if (max > 0) winners.forEach(id => titles[id] = (titles[id] || 0) + 1);
+      Object.keys(counts).forEach(id => received[id] = (received[id] || 0) + counts[id]);
+      await DB.doc("rooms/" + m.code).set({ ...r, status: "result", result: { counts, winners }, titles, received });
+    } catch (e) { mpErr(e); }
+    m.busy = false;
+  }
+
+  function renderMpResult() {
+    const r = MP.room, res = r.result || { counts: {}, winners: [] };
+    const ids = Object.keys(res.counts), n = ids.length || 1;
+    $("#mpHud2").textContent = `Manche ${r.round + 1}/${r.qs.length}`;
+    $("#mpHudMode2").textContent = (MODES[r.mode] || {}).name || "";
+    $("#mpQ2").textContent = r.qs[r.round];
+    $("#mpBars").innerHTML = ids.sort((a, b) => res.counts[b] - res.counts[a]).map(id =>
+      `<div class="res ${res.winners.includes(id) ? "win" : ""}"><div class="nm"><span>${pname(id)}</span><span>${res.counts[id]} vote(s)</span></div>` +
+      `<div class="track"><i style="width:${res.counts[id] / n * 100}%"></i></div></div>`).join("");
+    const w = res.winners.map(pname);
+    $("#mpVerdict").innerHTML = w.length === 1 ? `☠ ${w[0]} est condamné(e) ☠` : `⚖ Égalité maudite : ${w.join(", ")} ⚖`;
+    const last = r.round + 1 >= r.qs.length;
+    $("#mpNext").textContent = last ? "Voir le verdict final" : "Question suivante";
+    $("#mpNext").hidden = !MP.host;
+    $("#mpNextWait").hidden = MP.host;
+    showIf("mpResult");
+  }
+  $("#mpNext").onclick = async () => {
+    const m = MP; if (!m || !m.host) return;
+    const r = m.room, last = r.round + 1 >= r.qs.length;
+    try {
+      await DB.doc("rooms/" + m.code).set(last ? { ...r, status: "final" } : { ...r, status: "vote", round: r.round + 1, result: null });
+    } catch (e) { mpErr(e); }
+  };
+
+  function renderMpFinal() {
+    const r = MP.room, t = r.titles || {}, rc = r.received || {}, ids = Object.keys(MP.players);
+    const order = ids.sort((a, b) => (t[b] || 0) - (t[a] || 0) || (rc[b] || 0) - (rc[a] || 0));
+    const top = t[order[0]] || 0;
+    const champs = order.filter(id => (t[id] || 0) === top).map(pname);
+    $("#mpFinalVerdict").innerHTML = `☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`;
+    $("#mpFinalRows").innerHTML = order.map(id => `<tr><td>${pname(id)}</td><td class="num">${t[id] || 0}</td><td class="num">${rc[id] || 0}</td></tr>`).join("");
+    $("#mpReplay").hidden = !MP.host;
+    showIf("mpFinal");
+  }
+  $("#mpReplay").onclick = async () => {
+    const m = MP; if (!m || !m.host) return;
+    try { await DB.doc("rooms/" + m.code).set({ ...m.room, status: "lobby", round: 0, qs: [], result: null, titles: {}, received: {} }); } catch (e) { mpErr(e); }
+  };
+
+  document.querySelectorAll(".mpLeaveBtn").forEach(b => b.addEventListener("click", () =>
+    twoStep(b, "Confirmer ?", () => { mpLeave(true); show("menu"); })));
+  document.querySelectorAll(".mpCloseBtn").forEach(b => b.addEventListener("click", () =>
+    twoStep(b, "Confirmer la fermeture ?", async () => {
+      const m = MP; if (!m || !m.host) return;
+      m.closing = true;
+      try { await DB.doc("rooms/" + m.code).delete(); } catch (e) { m.closing = false; mpErr(e); }
+    })));
 })();
 </script>
 </body>
