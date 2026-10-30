@@ -229,6 +229,8 @@ body[data-screen="menu"] #calmBtn{display:block}
 .aovbtn{padding:34px 0;font-size:1.7rem;letter-spacing:.3em;margin:14px 0}
 .aovbtn.truth{background:#080808;color:var(--blood-hi);border-color:var(--blood-hi)}
 .aovbtn.truth:hover{background:var(--blood-hi);color:#fff}
+.aovbtn.trap{padding:22px 8px;font-size:1.15rem;letter-spacing:.1em;background:#000;border:2px dashed var(--blood-hi);color:var(--text)}
+.aovbtn.trap:hover{background:var(--blood)}
 #avPanel{border-top:2px dashed var(--blood);margin-top:20px;padding-top:6px}
 #avPanel .btn{margin:6px 0}
 /* ---------- Footer ---------- */
@@ -1346,10 +1348,11 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       const cur = S.order[S.round % S.players.length];
       if (S.phase === "choose") {
         return passHTML(cur, `<p class="sub">Choisis ton destin.</p>` +
-          `<button class="btn aovbtn" data-a="av" data-i="1">Action</button><button class="btn aovbtn truth" data-a="av" data-i="0">Vérité</button>` +
+          `<button class="btn aovbtn truth" data-a="av" data-i="0">🤐 Vérité</button><button class="btn aovbtn" data-a="av" data-i="1">💀 Action</button>` +
+          `<button class="btn aovbtn trap" data-a="av" data-i="2">🎲 ${T("Piège des Ténèbres", "Surprise")} (Aléatoire)</button>` +
           `<button class="btn ghost" data-a="end">Terminer la partie</button>`);
       }
-      return `<div class="question"><em>${nm(cur)} · ${S.d.type === "action" ? "ACTION" : "VÉRITÉ"}</em><span>${esc(S.d.text)}</span></div>` +
+      return `<div class="question"><em>${nm(cur)} · ${S.d.trap ? T("PIÈGE DES TÉNÈBRES · ", "SURPRISE · ") : ""}${S.d.type === "action" ? "ACTION" : "VÉRITÉ"}</em><span>${esc(S.d.text)}</span></div>` +
         `<div class="row"><button class="btn primary" data-a="done">✔ Fait</button><button class="btn" data-a="pass">Je passe</button></div>` +
         `<button class="btn ghost" data-a="reroll">Autre question</button><button class="btn ghost" data-a="end">Terminer la partie</button>`;
     },
@@ -1432,7 +1435,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     } else if (S.type === "aov") {
       const cur = S.order[S.round % S.players.length];
       if (a === "end") { mgFinal(); return; }
-      if (a === "av") { d.type = i === 1 ? "action" : "truth"; d.text = aovDraw(d.type, mode, S.used); S.phase = "prompt"; }
+      if (a === "av") { d.trap = i === 2; d.type = i === 2 ? pick(["truth", "action"]) : i === 1 ? "action" : "truth"; d.text = aovDraw(d.type, mode, S.used); S.phase = "prompt"; }
       else if (a === "reroll") d.text = aovDraw(d.type, mode, S.used);
       else if (a === "done" || a === "pass") { if (a === "done") S.scores[cur]++; S.round++; S.phase = "choose"; S.d = {}; }
     } else if (S.type === "never") {
@@ -1812,17 +1815,18 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     try { await fn(m, m.room.aov); } catch (e) { mpErr(e); }
     m.busy = false;
   }
-  const aovPrompt = type => aovAct(async (m, a) => {
+  const aovPrompt = pickType => aovAct(async (m, a) => {
+    const trap = pickType === "trap", type = trap ? pick(["truth", "action"]) : pickType;
     const q = [...(a.queue || [])], k = q.findIndex(x => x.type === type);
     const text = k >= 0 ? q.splice(k, 1)[0].text : aovDraw(type, m.room.mode, m.used);
-    await aovSave({ phase: "prompt", type, text, queue: q });
+    await aovSave({ phase: "prompt", type, trap, text, queue: q });
   });
   const aovNext = res => aovAct(async (m, a) => {
     let order = a.order, idx = a.idx + 1;
     if (idx >= order.length) { order = shuffle(order); idx = 0; }
     const scores = { ...(a.scores || {}) };
     if (res === "done") scores[a.turn] = (scores[a.turn] || 0) + 1;
-    await aovSave({ order, idx, turn: order[idx], seq: a.seq + 1, phase: "choose", type: null, text: "", scores });
+    await aovSave({ order, idx, turn: order[idx], seq: a.seq + 1, phase: "choose", type: null, trap: false, text: "", scores });
   });
 
   function renderAov() {
@@ -1836,10 +1840,10 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     if (a.phase === "choose") {
       html = mine
         ? `<p class="verdict">À toi de jouer, ${pname(myId)}</p>` + (picked ? `<p class="sub">Tirage en cours...</p>` :
-          `<button class="btn aovbtn" data-av="action">Action</button><button class="btn aovbtn truth" data-av="truth">Vérité</button>`)
+          `<button class="btn aovbtn truth" data-av="truth">🤐 Vérité</button><button class="btn aovbtn" data-av="action">💀 Action</button><button class="btn aovbtn trap" data-av="trap">🎲 ${T("Piège des Ténèbres", "Surprise")} (Aléatoire)</button>`)
         : `<p class="verdict">Au tour de ${tn}</p><p class="sub">${tn} choisit entre Action et Vérité...</p>`;
     } else {
-      html = `<div class="question"><em>${tn} · ${a.type === "action" ? "ACTION" : "VÉRITÉ"}</em><span>${esc(a.text)}</span></div>` +
+      html = `<div class="question"><em>${tn} · ${a.trap ? T("PIÈGE DES TÉNÈBRES · ", "SURPRISE · ") : ""}${a.type === "action" ? "ACTION" : "VÉRITÉ"}</em><span>${esc(a.text)}</span></div>` +
         (mine ? (doned ? `<p class="sub">Validation...</p>` : `<div class="row"><button class="btn primary" data-av="done">✔ Fait</button><button class="btn" data-av="pass">Je passe</button></div>`)
           : `<p class="sub">${tn} s'exécute...</p>`);
     }
@@ -1900,7 +1904,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   $("#avQueue").onclick = () => { const t = avText(); if (!t) { toast("Écris une question"); return; }
     aovAct((m, a) => aovSave({ queue: [...(a.queue || []), { type: $("#avQType").value, text: t }] })); $("#avQText").value = ""; };
   $("#avNow").onclick = () => { const t = avText(); if (!t) { toast("Écris une question"); return; }
-    aovAct((m, a) => aovSave({ phase: "prompt", type: $("#avQType").value, text: t })); $("#avQText").value = ""; };
+    aovAct((m, a) => aovSave({ phase: "prompt", type: $("#avQType").value, trap: false, text: t })); $("#avQText").value = ""; };
   $("#avSend").onclick = () => { const t = $("#avMsg").value.trim(); if (!t) return;
     aovAct((m, a) => aovSave({ banner: { id: Date.now(), text: t } })); $("#avMsg").value = ""; };
   $("#avReroll").onclick = () => aovAct((m, a) => a.phase === "prompt" ? aovSave({ text: aovDraw(a.type, m.room.mode, m.used) }) : null);
