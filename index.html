@@ -403,6 +403,13 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1800);
   }
 
+  /* Confirmation en deux clics (les boîtes de dialogue natives sont bloquées dans certains visionneurs) */
+  function twoStep(btn, label, fn) {
+    if (btn.dataset.armed) { clearTimeout(+btn.dataset.armed); delete btn.dataset.armed; btn.textContent = btn.dataset.orig; fn(); return; }
+    btn.dataset.orig = btn.textContent; btn.textContent = label;
+    btn.dataset.armed = setTimeout(() => { delete btn.dataset.armed; btn.textContent = btn.dataset.orig; }, 3000);
+  }
+
   function show(id) {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     $("#" + id).classList.add("active");
@@ -478,13 +485,12 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   };
   ["#setRounds", "#setSelf", "#setFx", "#setVib"].forEach(s => $(s).addEventListener("change", commitSettings));
   $("#resetPlayers").onclick = () => { names = ["", ""]; save(K.pl, names); toast("Prénoms effacés"); };
-  $("#resetAll").onclick = () => {
-    if (!confirm("Tout effacer (questions, mises à jour, réglages) ?")) return;
+  $("#resetAll").onclick = e => twoStep(e.currentTarget, "Confirmer : tout effacer ?", () => {
     Object.values(K).forEach(k => { try { localStorage.removeItem(k); } catch {} });
     changelog = [...DEFAULT_LOG]; questions = defaultQuestions();
     settings = { rounds: 10, self: true, fx: true, vib: true }; names = ["", ""]; mode = "chill";
     renderSettings(); document.body.classList.remove("noFx"); toast("Réinitialisé");
-  };
+  });
 
   /* ---------- Saisie des joueurs ---------- */
   function renderPlayers() {
@@ -525,7 +531,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
   $("#startGame").onclick = startGame;
   $("#replay").onclick = startGame;
-  $("#quitGame").onclick = () => { if (confirm("Abandonner la partie ?")) show("menu"); };
+  $("#quitGame").onclick = e => twoStep(e.currentTarget, "Confirmer l'abandon ?", () => show("menu"));
 
   function newRound() {
     G.votes = G.players.map(() => 0);
@@ -619,11 +625,10 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const b = e.target.closest("[data-delq]"); if (!b) return;
     questions[$("#qMode").value].splice(+b.dataset.delq, 1); save(K.q, questions); renderAdmin();
   });
-  $("#resetQ").onclick = () => {
+  $("#resetQ").onclick = e => twoStep(e.currentTarget, "Confirmer la restauration ?", () => {
     const m = $("#qMode").value;
-    if (!confirm("Restaurer les questions d'origine de ce mode ? Vos ajouts seront perdus.")) return;
     questions[m] = [...MODES[m].q]; save(K.q, questions); renderAdmin();
-  };
+  });
   function renderAdmin() {
     $("#adminLog").innerHTML = logHTML(changelog, true);
     const m = $("#qMode").value, list = questions[m];
