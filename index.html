@@ -188,6 +188,18 @@ body[data-screen="menu"] #fxBtn{display:block}
 #scoreMsg.go{animation:msgA 3.4s ease-in-out}
 @keyframes msgA{0%{opacity:0;transform:scale(.9)}10%,80%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.04)}}
 
+
+/* ---------- Mode sans horreur (thème neutre bleu, aucun effet) ---------- */
+body.calm{--blood:#2f5d8a;--blood-hi:#6aa9e6;--line:#1c2733;--panel:#10161d;--panel2:#161d26;background:radial-gradient(ellipse at 50% 0%,#0f1a28 0%,#06090d 60%) fixed}
+body.calm .question{box-shadow:0 0 20px rgba(47,93,138,.3)}
+body.calm input[type=text],body.calm textarea,body.calm select,body.calm .mode,body.calm .res .track{border-color:#243447}
+body.calm .res .track i,body.calm .bar>i{background:linear-gradient(90deg,#1d3a5a,var(--blood-hi))}
+body.calm .scard.lead{box-shadow:0 0 14px var(--blood)}
+body.calm #footer{text-shadow:none}
+#calmBtn{position:fixed;top:calc(max(10px,env(safe-area-inset-top,0px)) + 40px);right:max(10px,env(safe-area-inset-right,0px));z-index:70;display:none;padding:7px 12px;cursor:pointer;background:var(--panel);color:var(--text);border:1px solid var(--blood);letter-spacing:.1em;font-size:.8rem}
+#calmBtn:hover,#calmBtn:focus-visible{background:var(--blood);outline:none}
+body[data-screen="menu"] #calmBtn{display:block}
+
 /* ---------- Footer ---------- */
 #footer{
   position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
@@ -213,6 +225,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   <div id="splashWhisper"></div>
 </div>
 <button id="fxBtn" type="button" aria-pressed="true"></button>
+<button id="calmBtn" type="button" aria-pressed="false"></button>
 
 <div class="toast" id="toast"></div>
 
@@ -230,7 +243,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <button class="btn" data-go="admin">Panel Admin</button>
     <button class="btn" data-go="soon">Prochainement</button>
     <div class="box">
-      <h3>☠ Dernières Mises à Jour</h3>
+      <h3 id="logTitle">☠ Dernières Mises à Jour</h3>
       <div id="menuLog"></div>
     </div>
     <p class="sub">Mode actuel : <b id="curMode" style="color:var(--blood-hi)"></b></p>
@@ -238,7 +251,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
 
   <!-- PLAYERS -->
   <section class="screen" id="players">
-    <h2>Les condamnés</h2>
+    <h2 id="plTitle">Les condamnés</h2>
     <p class="sub" style="text-align:left">Entrez les prénoms (2 à 12 joueurs).</p>
     <div id="playerList"></div>
     <div class="row" style="margin-top:10px">
@@ -266,6 +279,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       </select>
       <div class="switch"><span>Autoriser de voter pour soi-même</span><input type="checkbox" id="setSelf"></div>
       <div class="switch"><span>Effets d'horreur (chargement et parties)</span><input type="checkbox" id="setFx"></div>
+      <div class="switch"><span>Mode sans horreur (thème neutre, aucun effet)</span><input type="checkbox" id="setCalm"></div>
       <div class="switch"><span>Classement après chaque manche</span><input type="checkbox" id="setScores"></div>
       <div class="switch"><span>Vibrations (mobile)</span><input type="checkbox" id="setVib"></div>
     </div>
@@ -561,7 +575,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   let changelog = load(K.log, DEFAULT_LOG);
   let questions = load(K.q, null) || defaultQuestions();
   for (const k in MODES) if (!Array.isArray(questions[k])) questions[k] = [...MODES[k].q];
-  let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true, scores: true }, load(K.set, {}));
+  let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false }, load(K.set, {}));
   let names = load(K.pl, ["", ""]);
   let mode = load(K.mode, "chill");
   if (!MODES[mode]) mode = "chill";
@@ -596,7 +610,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   buildDrips($("#blood"), 16);
   buildDrips($("#bloodS"), 22);
   const retrigger = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
-  const fxOn = () => settings.fx && document.body.classList.contains("horror");
+  const fxOn = () => settings.fx && !settings.calm && document.body.classList.contains("horror");
+  const T = (horror, calm) => settings.calm ? calm : horror;
   function flash() { if (fxOn() && !calmMotion) retrigger($("#flash"), "go"); }
   function jolt(id) {
     if (!fxOn()) return;
@@ -620,18 +635,25 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     }, 7000 + Math.random() * 9000);
   }
   function applyFx() {
-    document.body.classList.toggle("noFx", !settings.fx);
+    document.body.classList.toggle("noFx", !settings.fx || settings.calm);
+    document.body.classList.toggle("calm", settings.calm);
+    $("#logTitle").textContent = T("☠ Dernières Mises à Jour", "Dernières Mises à Jour");
+    $("#plTitle").textContent = T("Les condamnés", "Les joueurs");
+    const cb = $("#calmBtn");
+    cb.textContent = settings.calm ? "☀ Sans horreur : ON" : "☀ Sans horreur : OFF";
+    cb.setAttribute("aria-pressed", String(settings.calm));
     const b = $("#fxBtn");
     b.textContent = "☠ Effets : " + (settings.fx ? "ON" : "OFF");
     b.setAttribute("aria-pressed", String(settings.fx));
     horrorTick();
   }
+  $("#calmBtn").onclick = () => { settings.calm = !settings.calm; save(K.set, settings); applyFx(); };
   $("#fxBtn").onclick = () => { settings.fx = !settings.fx; save(K.set, settings); applyFx(); };
   applyFx();
 
   function scoreTable(rows) {
     rows.sort((a, b) => b.t - a.t || b.v - a.v);
-    return `<h3>☠ Classement</h3><table><thead><tr><th>Joueur</th><th class="num">Titres</th><th class="num">Votes</th></tr></thead><tbody>` +
+    return `<h3>${T("☠ ", "")}Classement</h3><table><thead><tr><th>Joueur</th><th class="num">Titres</th><th class="num">Votes</th></tr></thead><tbody>` +
       rows.map(r => `<tr class="${r.w ? "rowwin" : ""}"><td>${r.n}${r.w ? " +1" : ""}</td><td class="num">${r.t}</td><td class="num">${r.v}</td></tr>`).join("") +
       `</tbody></table>`;
   }
@@ -670,7 +692,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const base = title.textContent, glyphs = "█▓▒░#@%&?†✝";
     const corrupt = t => [...t].map(c => c !== " " && Math.random() < .25 ? pick([...glyphs]) : c).join("");
     const fxIv = setInterval(() => {
-      if (!settings.fx) { wh.textContent = ""; return; }
+      if (!settings.fx || settings.calm) { wh.textContent = ""; return; }
       wh.textContent = pick(WHISPERS);
       title.textContent = corrupt(base);
       setTimeout(() => { title.textContent = base; }, 140);
@@ -721,6 +743,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#setFx").checked = settings.fx;
     $("#setVib").checked = settings.vib;
     $("#setScores").checked = settings.scores;
+    $("#setCalm").checked = settings.calm;
   }
   const commitSettings = () => {
     settings.rounds = +$("#setRounds").value;
@@ -728,15 +751,16 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     settings.fx = $("#setFx").checked;
     settings.vib = $("#setVib").checked;
     settings.scores = $("#setScores").checked;
+    settings.calm = $("#setCalm").checked;
     save(K.set, settings);
     applyFx();
   };
-  ["#setRounds", "#setSelf", "#setFx", "#setVib", "#setScores"].forEach(s => $(s).addEventListener("change", commitSettings));
+  ["#setRounds", "#setSelf", "#setFx", "#setVib", "#setScores", "#setCalm"].forEach(s => $(s).addEventListener("change", commitSettings));
   $("#resetPlayers").onclick = () => { names = ["", ""]; save(K.pl, names); toast("Prénoms effacés"); };
   $("#resetAll").onclick = e => twoStep(e.currentTarget, "Confirmer : tout effacer ?", () => {
     Object.values(K).forEach(k => { try { localStorage.removeItem(k); } catch {} });
     changelog = [...DEFAULT_LOG]; questions = defaultQuestions();
-    settings = { rounds: 10, self: true, fx: true, vib: true, scores: true }; names = ["", ""]; mode = "chill";
+    settings = { rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false }; names = ["", ""]; mode = "chill";
     renderSettings(); applyFx(); toast("Réinitialisé");
   });
 
@@ -821,8 +845,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       `<div class="track"><i data-w="${n ? (G.votes[i] / n * 100) : 0}"></i></div></div>`).join("");
     const w = winners.map(i => esc(G.players[i]));
     $("#verdict").innerHTML = winners.length === 1
-      ? `☠ ${w[0]} est condamné(e) ☠`
-      : `⚖ Égalité maudite : ${w.join(", ")} ⚖`;
+      ? T(`☠ ${w[0]} est condamné(e) ☠`, `${w[0]} est désigné(e)`)
+      : T(`⚖ Égalité maudite : ${w.join(", ")} ⚖`, `Égalité : ${w.join(", ")}`);
     $("#nextRound").textContent = G.round + 1 >= G.qs.length ? "Voir le verdict final" : "Question suivante";
     $("#scoreBox").hidden = !settings.scores;
     $("#scoreBox").innerHTML = scoreTable(G.players.map((pl, i) => ({ n: esc(pl), t: G.titles[i], v: G.received[i], w: winners.includes(i) })));
@@ -841,7 +865,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const order = G.players.map((p, i) => i).sort((a, b) => G.titles[b] - G.titles[a] || G.received[b] - G.received[a]);
     const top = G.titles[order[0]];
     const champs = order.filter(i => G.titles[i] === top).map(i => esc(G.players[i]));
-    $("#finalVerdict").innerHTML = `☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`;
+    $("#finalVerdict").innerHTML = T(`☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`, `${champs.join(" & ")} ${champs.length > 1 ? "sont en tête" : "est en tête"}`);
     $("#finalRows").innerHTML = order.map(i =>
       `<tr><td>${esc(G.players[i])}</td><td class="num">${G.titles[i]}</td><td class="num">${G.received[i]}</td></tr>`).join("");
     save(K.last, G.players.map((n, i) => ({ name: n, score: G.titles[i] })));
@@ -869,6 +893,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       "{nom} mène le bal des squelettes."
     ]
   };
+  const NEUTRAL = { gain: ["{nom} gagne {pts} point(s)"], loss: ["{nom} perd {pts} point(s)"], lead: ["{nom} prend la tête"] };
   const SC = Object.assign({ players: [], step: 1 }, load(K.sc, {}));
   SC.msgs = Object.assign({}, DEF_MSGS, SC.msgs || {});
   const saveSc = () => save(K.sc, SC);
@@ -887,7 +912,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const ranks = [...SC.players].sort((a, b) => b.score - a.score).map(p => p.id);
     $("#scGrid").innerHTML = SC.players.length ? SC.players.map(p =>
       `<div class="scard ${p.id === lead ? "lead" : ""}" data-id="${esc(p.id)}">` +
-      `<span class="rk">#${ranks.indexOf(p.id) + 1}${p.id === lead ? " ☠" : ""}</span>` +
+      `<span class="rk">#${ranks.indexOf(p.id) + 1}${p.id === lead ? T(" ☠", " ★") : ""}</span>` +
       `<button class="btn small ghost del" data-sc="del" aria-label="Supprimer">✕</button>` +
       `<div class="nm">${esc(p.name)}</div><div class="pts">${p.score}</div>` +
       `<div class="ctl"><button class="btn" data-sc="minus" aria-label="Retirer des points">−</button><button class="btn primary" data-sc="plus" aria-label="Ajouter des points">+</button></div>` +
@@ -927,9 +952,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     p.score += d; saveSc(); renderScores();
     const after = scLeader();
     const kind = d > 0 ? (after === p.id && before !== p.id ? "lead" : "gain") : "loss";
-    const list = SC.msgs[kind].length ? SC.msgs[kind] : DEF_MSGS[kind];
+    const list = settings.calm ? NEUTRAL[kind] : (SC.msgs[kind].length ? SC.msgs[kind] : DEF_MSGS[kind]);
     const note = p.note ? "\n« " + p.note + " »" : "";
-    showMsg(fill(pick(list), p, d) + (kind === "gain" || kind === "lead" ? "" : "") + note);
+    showMsg(fill(pick(list), p, d) + note);
     jolt("scores");
   });
   $("#scGrid").addEventListener("change", e => {
@@ -1217,7 +1242,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       `<div class="res ${res.winners.includes(id) ? "win" : ""}"><div class="nm"><span>${pname(id)}</span><span>${res.counts[id]} vote(s)</span></div>` +
       `<div class="track"><i style="width:${res.counts[id] / n * 100}%"></i></div></div>`).join("");
     const w = res.winners.map(pname);
-    $("#mpVerdict").innerHTML = w.length === 1 ? `☠ ${w[0]} est condamné(e) ☠` : `⚖ Égalité maudite : ${w.join(", ")} ⚖`;
+    $("#mpVerdict").innerHTML = w.length === 1 ? T(`☠ ${w[0]} est condamné(e) ☠`, `${w[0]} est désigné(e)`) : T(`⚖ Égalité maudite : ${w.join(", ")} ⚖`, `Égalité : ${w.join(", ")}`);
     const last = r.round + 1 >= r.qs.length;
     $("#mpNext").textContent = last ? "Voir le verdict final" : "Question suivante";
     $("#mpNext").hidden = !MP.host;
@@ -1242,7 +1267,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const order = ids.sort((a, b) => (t[b] || 0) - (t[a] || 0) || (rc[b] || 0) - (rc[a] || 0));
     const top = t[order[0]] || 0;
     const champs = order.filter(id => (t[id] || 0) === top).map(pname);
-    $("#mpFinalVerdict").innerHTML = `☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`;
+    $("#mpFinalVerdict").innerHTML = T(`☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`, `${champs.join(" & ")} ${champs.length > 1 ? "sont en tête" : "est en tête"}`);
     $("#mpFinalRows").innerHTML = order.map(id => `<tr><td>${pname(id)}</td><td class="num">${t[id] || 0}</td><td class="num">${rc[id] || 0}</td></tr>`).join("");
     $("#mpReplay").hidden = !MP.host;
     save(K.last, order.map(id => ({ name: (MP.players[id] || {}).name || "?", score: t[id] || 0 })));
