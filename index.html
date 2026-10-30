@@ -32,7 +32,7 @@ button,input,select,textarea{font-family:inherit;font-size:1rem}
 #splash.out{opacity:0;pointer-events:none}
 #splash h1{
   color:var(--blood-hi);letter-spacing:.2em;font-size:clamp(1.2rem,5vw,2.2rem);text-align:center;
-  text-shadow:0 0 12px var(--blood);animation:flicker 2.5s infinite;
+  text-shadow:0 0 12px var(--blood);animation:flicker 2.5s infinite,glitch 3s infinite;
 }
 .bar{width:min(420px,80vw);height:14px;border:1px solid var(--blood);background:#0a0000;overflow:hidden}
 .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#5a000d,var(--blood-hi));box-shadow:0 0 14px var(--blood)}
@@ -46,7 +46,7 @@ button,input,select,textarea{font-family:inherit;font-size:1rem}
 @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 h1.title{
   text-align:center;color:var(--blood-hi);font-size:clamp(1.8rem,7vw,3.2rem);letter-spacing:.12em;
-  margin:18px 0 6px;text-shadow:0 0 18px var(--blood);animation:flicker 4s infinite;
+  margin:18px 0 6px;text-shadow:0 0 18px var(--blood);
 }
 .sub{text-align:center;color:var(--dim);margin-bottom:24px;font-size:.9rem}
 h2{color:var(--blood-hi);letter-spacing:.1em;margin-bottom:14px;text-transform:uppercase;font-size:1.2rem}
@@ -127,7 +127,7 @@ td.num{text-align:right}
 .toast.show{opacity:1}
 .shake{animation:shake .4s}
 @keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
-body.noFx h1.title,body.noFx #splash h1{animation:none}
+body.noFx #splash h1{animation:none}
 
 [hidden]{display:none!important}
 .code{font-size:clamp(2.4rem,14vw,4rem);letter-spacing:.35em;padding-left:.35em;text-align:center;color:var(--blood-hi);text-shadow:0 0 18px var(--blood);margin:8px 0 4px}
@@ -135,6 +135,38 @@ body.noFx h1.title,body.noFx #splash h1{animation:none}
 .chip{border:1px solid var(--blood);padding:6px 12px;background:var(--panel2)}
 .chip.me{background:var(--blood)}
 .chip small{color:var(--dim);margin-left:6px}
+
+
+/* ---------- Horreur (écran de chargement + parties, jamais dans le menu) ---------- */
+@keyframes glitch{0%,88%,100%{text-shadow:0 0 12px var(--blood)}90%{text-shadow:4px 0 #ffffff55,-4px 0 var(--blood-hi)}94%{text-shadow:-5px 2px #ffffff55,5px -2px var(--blood-hi)}}
+.blood{position:fixed;top:0;left:0;right:0;height:42vh;z-index:40;overflow:hidden;pointer-events:none;display:none}
+.blood::before{content:"";position:absolute;top:0;left:0;right:0;height:14px;background:linear-gradient(#6a000f,transparent)}
+.blood i{position:absolute;top:0;height:0;width:var(--w,6px);background:linear-gradient(#7a0010,#b00018);border-radius:0 0 10px 10px;opacity:0;animation:drip var(--d,8s) var(--dl,0s) infinite ease-in}
+@keyframes drip{0%{height:0;opacity:0}10%{opacity:.85}70%{height:var(--h,120px);opacity:.85}100%{height:var(--h,120px);opacity:0}}
+#blood{opacity:.55}
+#bloodS{display:block;position:absolute;height:62%;z-index:1}
+body.noFx #bloodS{display:none}
+#splash h1,#splashPct,#splashWhisper,#splash .bar{position:relative;z-index:2}
+#splashWhisper{min-height:1.4em;color:var(--blood-hi);font-style:italic;letter-spacing:.15em;font-size:.95rem;text-align:center;text-shadow:0 0 8px var(--blood)}
+#splash .bar>i{transition:width .15s}
+#heart,#flash,#whisper{position:fixed;pointer-events:none;display:none}
+#heart{inset:0;z-index:45;animation:heart 2.2s infinite}
+@keyframes heart{0%,50%,100%{box-shadow:inset 0 0 140px 10px rgba(150,0,20,0)}8%{box-shadow:inset 0 0 160px 30px rgba(150,0,20,.5)}18%{box-shadow:inset 0 0 140px 10px rgba(150,0,20,.12)}28%{box-shadow:inset 0 0 170px 34px rgba(150,0,20,.55)}}
+#flash{inset:0;z-index:55;background:#b00018;opacity:0}
+#flash.go{animation:flashA .45s ease-out}
+@keyframes flashA{0%{opacity:.55}100%{opacity:0}}
+#whisper{left:0;right:0;z-index:48;text-align:center;font-style:italic;font-size:clamp(1.1rem,5.5vw,2rem);letter-spacing:.25em;color:var(--blood-hi);text-shadow:0 0 14px var(--blood);opacity:0}
+#whisper.go{animation:whisperA 2.4s ease-in-out}
+@keyframes whisperA{0%,100%{opacity:0;transform:scale(.96)}30%,60%{opacity:.8;transform:scale(1)}}
+body.horror:not(.noFx) .blood,body.horror:not(.noFx) #heart,body.horror:not(.noFx) #flash,body.horror:not(.noFx) #whisper{display:block}
+body.horror:not(.noFx) .question{animation:flicker 5s infinite}
+body.horror:not(.noFx) .verdict{animation:glitch 3s infinite}
+body.horror:not(.noFx) h2{animation:glitch 4s infinite}
+.rowwin td{color:var(--blood-hi);font-weight:bold}
+#fxBtn{position:fixed;top:max(10px,env(safe-area-inset-top,0px));right:max(10px,env(safe-area-inset-right,0px));z-index:70;display:none;padding:7px 12px;cursor:pointer;background:var(--panel);color:var(--text);border:1px solid var(--blood);letter-spacing:.1em;font-size:.8rem}
+#fxBtn:hover,#fxBtn:focus-visible{background:var(--blood);outline:none}
+body[data-screen="menu"] #fxBtn{display:block}
+@media (prefers-reduced-motion:reduce){.blood i,#heart{animation:none}}
 
 /* ---------- Footer ---------- */
 #footer{
@@ -154,10 +186,13 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
 
 <!-- Splash -->
 <div id="splash">
-  <h1>CHARGEMENT DES ÂMES...</h1>
+  <div class="blood" id="bloodS"></div>
+  <h1 id="splashTitle">CHARGEMENT DES ÂMES...</h1>
   <div class="bar"><i id="splashBar"></i></div>
   <div id="splashPct">0%</div>
+  <div id="splashWhisper"></div>
 </div>
+<button id="fxBtn" type="button" aria-pressed="true"></button>
 
 <div class="toast" id="toast"></div>
 
@@ -209,7 +244,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
         <option value="15">15</option><option value="20">20</option>
       </select>
       <div class="switch"><span>Autoriser de voter pour soi-même</span><input type="checkbox" id="setSelf"></div>
-      <div class="switch"><span>Effets visuels (lueurs / scintillements)</span><input type="checkbox" id="setFx"></div>
+      <div class="switch"><span>Effets d'horreur (chargement et parties)</span><input type="checkbox" id="setFx"></div>
+      <div class="switch"><span>Classement après chaque manche</span><input type="checkbox" id="setScores"></div>
       <div class="switch"><span>Vibrations (mobile)</span><input type="checkbox" id="setVib"></div>
     </div>
     <div class="box">
@@ -281,6 +317,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <div class="question"><em>QUI EST LE PLUS...</em><span id="qTxt2"></span></div>
     <div id="resBars"></div>
     <div class="verdict" id="verdict"></div>
+    <div class="box" id="scoreBox"></div>
     <button class="btn primary" id="nextRound">Question suivante</button>
   </section>
 
@@ -357,6 +394,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <div class="question"><em>QUI EST LE PLUS...</em><span id="mpQ2"></span></div>
     <div id="mpBars"></div>
     <div class="verdict" id="mpVerdict"></div>
+    <div class="box" id="mpScoreBox"></div>
     <button class="btn primary" id="mpNext">Question suivante</button>
     <p class="sub" id="mpNextWait">En attente de l'hôte...</p>
   </section>
@@ -377,6 +415,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   </section>
 
 </div>
+
+<div class="blood" id="blood"></div><div id="heart"></div><div id="flash"></div><div id="whisper"></div>
 
 <div id="footer">Une création macabre signée Thomas Lesprit... Jouez à vos risques et périls</div>
 
@@ -473,7 +513,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   let changelog = load(K.log, DEFAULT_LOG);
   let questions = load(K.q, null) || defaultQuestions();
   for (const k in MODES) if (!Array.isArray(questions[k])) questions[k] = [...MODES[k].q];
-  let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true }, load(K.set, {}));
+  let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true, scores: true }, load(K.set, {}));
   let names = load(K.pl, ["", ""]);
   let mode = load(K.mode, "chill");
   if (!MODES[mode]) mode = "chill";
@@ -489,6 +529,65 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1800);
   }
 
+  /* ---------- Effets d'horreur ---------- */
+  const HORROR = new Set(["vote", "result", "final", "mpLobby", "mpVote", "mpResult", "mpFinal"]);
+  const WHISPERS = ["Il est derrière toi...", "Ne te retourne pas", "Tu n'es pas seul", "Ils savent ce que tu as fait", "Un de vous ment", "Elle t'observe...", "Trop tard..."];
+  const calmMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  function buildDrips(el, n) {
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement("i");
+      d.style.left = (Math.random() * 100) + "%";
+      d.style.setProperty("--w", (3 + Math.random() * 6) + "px");
+      d.style.setProperty("--h", (40 + Math.random() * 180) + "px");
+      d.style.setProperty("--d", (5 + Math.random() * 6) + "s");
+      d.style.setProperty("--dl", "-" + (Math.random() * 10) + "s");
+      el.appendChild(d);
+    }
+  }
+  buildDrips($("#blood"), 16);
+  buildDrips($("#bloodS"), 22);
+  const retrigger = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+  const fxOn = () => settings.fx && document.body.classList.contains("horror");
+  function flash() { if (fxOn() && !calmMotion) retrigger($("#flash"), "go"); }
+  function jolt(id) {
+    if (!fxOn()) return;
+    flash();
+    const el = $("#" + id); el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
+    vibrate([60, 40, 90]);
+  }
+  let hTimer = null;
+  function horrorTick() {
+    clearTimeout(hTimer);
+    if (!fxOn() || calmMotion) return;
+    hTimer = setTimeout(() => {
+      if (fxOn()) {
+        const w = $("#whisper");
+        w.textContent = pick(WHISPERS);
+        w.style.top = (15 + Math.random() * 60) + "vh";
+        retrigger(w, "go");
+        if (Math.random() < .5) flash();
+      }
+      horrorTick();
+    }, 7000 + Math.random() * 9000);
+  }
+  function applyFx() {
+    document.body.classList.toggle("noFx", !settings.fx);
+    const b = $("#fxBtn");
+    b.textContent = "☠ Effets : " + (settings.fx ? "ON" : "OFF");
+    b.setAttribute("aria-pressed", String(settings.fx));
+    horrorTick();
+  }
+  $("#fxBtn").onclick = () => { settings.fx = !settings.fx; save(K.set, settings); applyFx(); };
+  applyFx();
+
+  function scoreTable(rows) {
+    rows.sort((a, b) => b.t - a.t || b.v - a.v);
+    return `<h3>☠ Classement</h3><table><thead><tr><th>Joueur</th><th class="num">Titres</th><th class="num">Votes</th></tr></thead><tbody>` +
+      rows.map(r => `<tr class="${r.w ? "rowwin" : ""}"><td>${r.n}${r.w ? " +1" : ""}</td><td class="num">${r.t}</td><td class="num">${r.v}</td></tr>`).join("") +
+      `</tbody></table>`;
+  }
+
   /* Confirmation en deux clics (les boîtes de dialogue natives sont bloquées dans certains visionneurs) */
   function twoStep(btn, label, fn) {
     if (btn.dataset.armed) { clearTimeout(+btn.dataset.armed); delete btn.dataset.armed; btn.textContent = btn.dataset.orig; fn(); return; }
@@ -497,6 +596,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
 
   function show(id) {
+    document.body.dataset.screen = id;
+    document.body.classList.toggle("horror", HORROR.has(id));
+    horrorTick();
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     $("#" + id).classList.add("active");
     window.scrollTo(0, 0);
@@ -515,12 +617,21 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   /* ---------- Splash ---------- */
   (function splash() {
     let p = 0;
-    const bar = $("#splashBar"), pct = $("#splashPct");
+    const bar = $("#splashBar"), pct = $("#splashPct"), title = $("#splashTitle"), wh = $("#splashWhisper");
+    const base = title.textContent, glyphs = "█▓▒░#@%&?†✝";
+    const corrupt = t => [...t].map(c => c !== " " && Math.random() < .25 ? pick([...glyphs]) : c).join("");
+    const fxIv = setInterval(() => {
+      if (!settings.fx) { wh.textContent = ""; return; }
+      wh.textContent = pick(WHISPERS);
+      title.textContent = corrupt(base);
+      setTimeout(() => { title.textContent = base; }, 140);
+    }, 1100);
     const iv = setInterval(() => {
+      if (Math.random() < .15) return; // la barre hésite
       p = Math.min(100, p + Math.random() * 9 + 2);
       bar.style.width = p + "%"; pct.textContent = Math.floor(p) + "%";
       if (p >= 100) {
-        clearInterval(iv);
+        clearInterval(iv); clearInterval(fxIv); title.textContent = base;
         setTimeout(() => {
           $("#splash").classList.add("out");
           show("menu");
@@ -541,7 +652,6 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   function renderMenu() {
     $("#menuLog").innerHTML = logHTML(changelog.slice(0, 3), false);
     $("#curMode").textContent = MODES[mode].name;
-    document.body.classList.toggle("noFx", !settings.fx);
   }
 
   /* ---------- Modes ---------- */
@@ -561,22 +671,24 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#setSelf").checked = settings.self;
     $("#setFx").checked = settings.fx;
     $("#setVib").checked = settings.vib;
+    $("#setScores").checked = settings.scores;
   }
   const commitSettings = () => {
     settings.rounds = +$("#setRounds").value;
     settings.self = $("#setSelf").checked;
     settings.fx = $("#setFx").checked;
     settings.vib = $("#setVib").checked;
+    settings.scores = $("#setScores").checked;
     save(K.set, settings);
-    document.body.classList.toggle("noFx", !settings.fx);
+    applyFx();
   };
-  ["#setRounds", "#setSelf", "#setFx", "#setVib"].forEach(s => $(s).addEventListener("change", commitSettings));
+  ["#setRounds", "#setSelf", "#setFx", "#setVib", "#setScores"].forEach(s => $(s).addEventListener("change", commitSettings));
   $("#resetPlayers").onclick = () => { names = ["", ""]; save(K.pl, names); toast("Prénoms effacés"); };
   $("#resetAll").onclick = e => twoStep(e.currentTarget, "Confirmer : tout effacer ?", () => {
     Object.values(K).forEach(k => { try { localStorage.removeItem(k); } catch {} });
     changelog = [...DEFAULT_LOG]; questions = defaultQuestions();
-    settings = { rounds: 10, self: true, fx: true, vib: true }; names = ["", ""]; mode = "chill";
-    renderSettings(); document.body.classList.remove("noFx"); toast("Réinitialisé");
+    settings = { rounds: 10, self: true, fx: true, vib: true, scores: true }; names = ["", ""]; mode = "chill";
+    renderSettings(); applyFx(); toast("Réinitialisé");
   });
 
   /* ---------- Saisie des joueurs ---------- */
@@ -663,7 +775,10 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       ? `☠ ${w[0]} est condamné(e) ☠`
       : `⚖ Égalité maudite : ${w.join(", ")} ⚖`;
     $("#nextRound").textContent = G.round + 1 >= G.qs.length ? "Voir le verdict final" : "Question suivante";
+    $("#scoreBox").hidden = !settings.scores;
+    $("#scoreBox").innerHTML = scoreTable(G.players.map((pl, i) => ({ n: esc(pl), t: G.titles[i], v: G.received[i], w: winners.includes(i) })));
     show("result");
+    jolt("result");
     vibrate([80, 60, 120]);
     requestAnimationFrame(() => requestAnimationFrame(() =>
       document.querySelectorAll("#resBars i").forEach(el => el.style.width = el.dataset.w + "%")));
@@ -681,6 +796,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#finalRows").innerHTML = order.map(i =>
       `<tr><td>${esc(G.players[i])}</td><td class="num">${G.titles[i]}</td><td class="num">${G.received[i]}</td></tr>`).join("");
     show("final");
+    jolt("final");
   }
 
   /* ---------- Admin : changelog ---------- */
@@ -949,7 +1065,12 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#mpNext").textContent = last ? "Voir le verdict final" : "Question suivante";
     $("#mpNext").hidden = !MP.host;
     $("#mpNextWait").hidden = MP.host;
+    const t = r.titles || {}, rc = r.received || {};
+    $("#mpScoreBox").hidden = !settings.scores;
+    $("#mpScoreBox").innerHTML = scoreTable(ids.map(id => ({ n: pname(id), t: t[id] || 0, v: rc[id] || 0, w: res.winners.includes(id) })));
+    const fresh = !$("#mpResult").classList.contains("active");
     showIf("mpResult");
+    if (fresh) jolt("mpResult");
   }
   $("#mpNext").onclick = async () => {
     const m = MP; if (!m || !m.host) return;
