@@ -168,6 +168,26 @@ body.horror:not(.noFx) h2{animation:glitch 4s infinite}
 body[data-screen="menu"] #fxBtn{display:block}
 @media (prefers-reduced-motion:reduce){.blood i,#heart{animation:none}}
 
+
+/* ---------- Tableau des scores (mode tablette) ---------- */
+#scores{width:min(1100px,100%)}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin:14px 0}
+.scard{border:1px solid var(--line);background:var(--panel);padding:14px;position:relative;text-align:center;min-width:0}
+.scard.lead{border-color:var(--blood-hi);box-shadow:0 0 18px var(--blood)}
+.scard .rk{position:absolute;top:8px;left:10px;color:var(--dim);font-size:.85rem}
+.scard .del{position:absolute;top:6px;right:6px}
+.scard .nm{font-size:1.2rem;margin:12px 0 0;word-break:break-word}
+.scard .pts{font-size:3.4rem;line-height:1.1;color:var(--blood-hi);text-shadow:0 0 14px var(--blood);font-variant-numeric:tabular-nums}
+.scard .ctl{display:flex;gap:10px;margin:8px 0}
+.scard .ctl .btn{flex:1;min-width:0;padding:16px 0;font-size:1.6rem;margin:0;letter-spacing:0}
+.scard input{font-size:.85rem;text-align:center}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.toolbar>*{flex:1;min-width:140px}
+.toolbar .btn{margin:4px 0}
+#scoreMsg{position:fixed;inset:0;z-index:65;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;pointer-events:none;opacity:0;background:rgba(0,0,0,.7);color:var(--blood-hi);font-size:clamp(1.5rem,6vw,3rem);line-height:1.3;text-shadow:0 0 20px var(--blood);letter-spacing:.06em}
+#scoreMsg.go{animation:msgA 3.4s ease-in-out}
+@keyframes msgA{0%{opacity:0;transform:scale(.9)}10%,80%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.04)}}
+
 /* ---------- Footer ---------- */
 #footer{
   position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
@@ -205,6 +225,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <button class="btn primary" data-go="players">Jouer (un seul téléphone)</button>
     <button class="btn primary" id="mpBtn" data-go="mpMenu" hidden>Multijoueur : héberger / rejoindre</button>
     <button class="btn" data-go="modes">Modes de jeu</button>
+    <button class="btn" data-go="scores">Tableau des scores</button>
     <button class="btn" data-go="settings">Paramètres</button>
     <button class="btn" data-go="admin">Panel Admin</button>
     <button class="btn" data-go="soon">Prochainement</button>
@@ -414,9 +435,36 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <button class="btn ghost mpCloseBtn">Fermer le salon</button>
   </section>
 
+  <!-- TABLEAU DES SCORES -->
+  <section class="screen" id="scores">
+    <h2>Tableau des scores</h2>
+    <div class="toolbar">
+      <div><label for="scName">Nouveau joueur</label><input type="text" id="scName" maxlength="20" placeholder="Prénom" autocomplete="off"></div>
+      <button class="btn" id="scAdd">+ Ajouter</button>
+      <div><label for="scStep">Points par appui</label>
+        <select id="scStep"><option value="1">1</option><option value="2">2</option><option value="5">5</option><option value="10">10</option><option value="50">50</option><option value="100">100</option></select></div>
+      <button class="btn ghost" id="scFull">Plein écran</button>
+    </div>
+    <div class="sgrid" id="scGrid"></div>
+    <details class="box" id="scMsgBox">
+      <summary>Messages d'horreur personnalisés</summary>
+      <p class="sub" style="text-align:left;margin:10px 0 0">Un message par ligne, tiré au hasard à chaque changement de score. Variables : {nom}, {pts} (points), {score} (total).</p>
+      <label for="msgGain">Quand un joueur gagne des points</label><textarea id="msgGain" rows="4"></textarea>
+      <label for="msgLoss">Quand un joueur perd des points</label><textarea id="msgLoss" rows="4"></textarea>
+      <label for="msgLead">Quand un joueur prend la tête</label><textarea id="msgLead" rows="3"></textarea>
+      <button class="btn small ghost" id="msgReset" style="margin-top:10px">Restaurer les messages d'origine</button>
+    </details>
+    <div class="row">
+      <button class="btn" id="scImport">Importer la dernière partie</button>
+      <button class="btn ghost" id="scZero">Remettre les scores à 0</button>
+      <button class="btn ghost" id="scClear">Supprimer tous les joueurs</button>
+    </div>
+    <button class="btn ghost back" data-go="menu">← Retour</button>
+  </section>
+
 </div>
 
-<div class="blood" id="blood"></div><div id="heart"></div><div id="flash"></div><div id="whisper"></div>
+<div class="blood" id="blood"></div><div id="heart"></div><div id="flash"></div><div id="whisper"></div><div id="scoreMsg"></div>
 
 <div id="footer">Une création macabre signée Thomas Lesprit... Jouez à vos risques et périls</div>
 
@@ -505,7 +553,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   ];
 
   /* ---------- Stockage ---------- */
-  const K = { log: "qelp_log", q: "qelp_questions", set: "qelp_settings", pl: "qelp_players", mode: "qelp_mode" };
+  const K = { sc: "qelp_scores", last: "qelp_last", log: "qelp_log", q: "qelp_questions", set: "qelp_settings", pl: "qelp_players", mode: "qelp_mode" };
   const load = (k, def) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch { return def; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
@@ -530,7 +578,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
 
   /* ---------- Effets d'horreur ---------- */
-  const HORROR = new Set(["vote", "result", "final", "mpLobby", "mpVote", "mpResult", "mpFinal"]);
+  const HORROR = new Set(["scores", "vote", "result", "final", "mpLobby", "mpVote", "mpResult", "mpFinal"]);
   const WHISPERS = ["Il est derrière toi...", "Ne te retourne pas", "Tu n'es pas seul", "Ils savent ce que tu as fait", "Un de vous ment", "Elle t'observe...", "Trop tard..."];
   const calmMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -608,6 +656,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     if (id === "settings") renderSettings();
     if (id === "admin") renderAdmin();
     if (id === "mpMenu") renderMpMenu();
+    if (id === "scores") renderScores();
   }
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-go]");
@@ -795,9 +844,117 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#finalVerdict").innerHTML = `☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`;
     $("#finalRows").innerHTML = order.map(i =>
       `<tr><td>${esc(G.players[i])}</td><td class="num">${G.titles[i]}</td><td class="num">${G.received[i]}</td></tr>`).join("");
+    save(K.last, G.players.map((n, i) => ({ name: n, score: G.titles[i] })));
     show("final");
     jolt("final");
   }
+
+  /* ---------- Tableau des scores (tablette) ---------- */
+  const DEF_MSGS = {
+    gain: [
+      "{nom} gagne {pts} point(s)... son âme noircit.",
+      "Le sang coule pour {nom} : +{pts}",
+      "{nom} danse avec les morts. +{pts}",
+      "Les ténèbres sourient à {nom}. +{pts}"
+    ],
+    loss: [
+      "{nom} perd {pts} point(s)... les ténèbres l'avalent.",
+      "Une main glacée attrape {nom} : -{pts}",
+      "{nom} s'enfonce dans le cercueil. -{pts}",
+      "Les murs murmurent le nom de {nom}... -{pts}"
+    ],
+    lead: [
+      "{nom} prend la tête... le trône est maudit.",
+      "Tous s'inclinent devant {nom}, l'âme la plus damnée.",
+      "{nom} mène le bal des squelettes."
+    ]
+  };
+  const SC = Object.assign({ players: [], step: 1 }, load(K.sc, {}));
+  SC.msgs = Object.assign({}, DEF_MSGS, SC.msgs || {});
+  const saveSc = () => save(K.sc, SC);
+  const fill = (t, p, d) => t.replace(/\{nom\}/g, p.name).replace(/\{pts\}/g, String(Math.abs(d))).replace(/\{score\}/g, String(p.score));
+  function scLeader() {
+    const max = Math.max(...SC.players.map(p => p.score));
+    const top = SC.players.filter(p => p.score === max);
+    return top.length === 1 && max > 0 ? top[0].id : null;
+  }
+  function showMsg(text) {
+    const m = $("#scoreMsg"); m.textContent = text; retrigger(m, "go");
+  }
+  function renderScores() {
+    $("#scStep").value = String(SC.step);
+    const lead = scLeader();
+    const ranks = [...SC.players].sort((a, b) => b.score - a.score).map(p => p.id);
+    $("#scGrid").innerHTML = SC.players.length ? SC.players.map(p =>
+      `<div class="scard ${p.id === lead ? "lead" : ""}" data-id="${esc(p.id)}">` +
+      `<span class="rk">#${ranks.indexOf(p.id) + 1}${p.id === lead ? " ☠" : ""}</span>` +
+      `<button class="btn small ghost del" data-sc="del" aria-label="Supprimer">✕</button>` +
+      `<div class="nm">${esc(p.name)}</div><div class="pts">${p.score}</div>` +
+      `<div class="ctl"><button class="btn" data-sc="minus" aria-label="Retirer des points">−</button><button class="btn primary" data-sc="plus" aria-label="Ajouter des points">+</button></div>` +
+      `<input type="text" data-sc="note" maxlength="80" placeholder="Message perso (épitaphe)" value="${esc(p.note || "")}"></div>`).join("")
+      : '<p class="empty">Aucun joueur. Ajoute-en un pour commencer.</p>';
+    $("#msgGain").value = SC.msgs.gain.join("\n");
+    $("#msgLoss").value = SC.msgs.loss.join("\n");
+    $("#msgLead").value = SC.msgs.lead.join("\n");
+  }
+  function addScPlayer(name, score) {
+    name = name.trim(); if (!name) return null;
+    let p = SC.players.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (!p) { p = { id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, score: 0, note: "" }; SC.players.push(p); }
+    p.score += score || 0;
+    return p;
+  }
+  $("#scAdd").onclick = () => {
+    if (!addScPlayer($("#scName").value, 0)) { toast("Entre un prénom"); return; }
+    $("#scName").value = ""; saveSc(); renderScores();
+  };
+  $("#scName").addEventListener("keydown", e => { if (e.key === "Enter") $("#scAdd").click(); });
+  $("#scStep").onchange = e => { SC.step = +e.target.value; saveSc(); };
+  $("#scFull").onclick = () => {
+    const d = document;
+    if (d.fullscreenElement) d.exitFullscreen().catch(() => {});
+    else (d.documentElement.requestFullscreen || (() => Promise.reject()))
+      .call(d.documentElement).catch(() => toast("Plein écran indisponible ici"));
+  };
+  $("#scGrid").addEventListener("click", e => {
+    const b = e.target.closest("[data-sc]"), card = e.target.closest(".scard");
+    if (!b || !card) return;
+    const p = SC.players.find(x => x.id === card.dataset.id); if (!p) return;
+    const act = b.dataset.sc;
+    if (act === "del") { twoStep(b, "Sûr ?", () => { SC.players = SC.players.filter(x => x !== p); saveSc(); renderScores(); }); return; }
+    if (act !== "plus" && act !== "minus") return;
+    const d = act === "plus" ? SC.step : -SC.step, before = scLeader();
+    p.score += d; saveSc(); renderScores();
+    const after = scLeader();
+    const kind = d > 0 ? (after === p.id && before !== p.id ? "lead" : "gain") : "loss";
+    const list = SC.msgs[kind].length ? SC.msgs[kind] : DEF_MSGS[kind];
+    const note = p.note ? "\n« " + p.note + " »" : "";
+    showMsg(fill(pick(list), p, d) + (kind === "gain" || kind === "lead" ? "" : "") + note);
+    jolt("scores");
+  });
+  $("#scGrid").addEventListener("change", e => {
+    if (e.target.dataset.sc !== "note") return;
+    const p = SC.players.find(x => x.id === e.target.closest(".scard").dataset.id);
+    if (p) { p.note = e.target.value.trim(); saveSc(); }
+  });
+  const lines = v => v.split("\n").map(x => x.trim()).filter(Boolean);
+  [["#msgGain", "gain"], ["#msgLoss", "loss"], ["#msgLead", "lead"]].forEach(([sel, k]) =>
+    $(sel).addEventListener("change", e => { SC.msgs[k] = lines(e.target.value); saveSc(); }));
+  $("#msgReset").onclick = e => twoStep(e.currentTarget, "Confirmer ?", () => {
+    SC.msgs = JSON.parse(JSON.stringify(DEF_MSGS)); saveSc(); renderScores();
+  });
+  $("#scImport").onclick = () => {
+    const last = load(K.last, null);
+    if (!last || !last.length) { toast("Aucune partie terminée à importer"); return; }
+    last.forEach(r => addScPlayer(r.name, r.score));
+    saveSc(); renderScores(); toast("Scores de la dernière partie ajoutés");
+  };
+  $("#scZero").onclick = e => twoStep(e.currentTarget, "Confirmer la remise à 0 ?", () => {
+    SC.players.forEach(p => p.score = 0); saveSc(); renderScores();
+  });
+  $("#scClear").onclick = e => twoStep(e.currentTarget, "Confirmer la suppression ?", () => {
+    SC.players = []; saveSc(); renderScores();
+  });
 
   /* ---------- Admin : changelog ---------- */
   $("#logForm").addEventListener("submit", e => {
@@ -1088,6 +1245,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#mpFinalVerdict").innerHTML = `☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`;
     $("#mpFinalRows").innerHTML = order.map(id => `<tr><td>${pname(id)}</td><td class="num">${t[id] || 0}</td><td class="num">${rc[id] || 0}</td></tr>`).join("");
     $("#mpReplay").hidden = !MP.host;
+    save(K.last, order.map(id => ({ name: (MP.players[id] || {}).name || "?", score: t[id] || 0 })));
     showIf("mpFinal");
   }
   $("#mpReplay").onclick = async () => {
