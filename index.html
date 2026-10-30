@@ -226,6 +226,11 @@ body.calm #footer{text-shadow:none}
 #calmBtn:hover,#calmBtn:focus-visible{background:var(--blood);outline:none}
 body[data-screen="menu"] #calmBtn{display:block}
 
+.aovbtn{padding:34px 0;font-size:1.7rem;letter-spacing:.3em;margin:14px 0}
+.aovbtn.truth{background:#080808;color:var(--blood-hi);border-color:var(--blood-hi)}
+.aovbtn.truth:hover{background:var(--blood-hi);color:#fff}
+#avPanel{border-top:2px dashed var(--blood);margin-top:20px;padding-top:6px}
+#avPanel .btn{margin:6px 0}
 /* ---------- Footer ---------- */
 #footer{
   position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
@@ -265,6 +270,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <button class="btn primary" data-go="players">Jouer (un seul téléphone)</button>
     <button class="btn primary" id="mpBtn" data-go="mpMenu" hidden>Multijoueur : héberger / rejoindre</button>
     <button class="btn" data-go="modes">Modes de jeu</button>
+    <button class="btn primary" id="aovBtn">Action ou Vérité</button>
     <button class="btn" data-go="minis">Mini-jeux</button>
     <button class="btn" data-go="scores">Tableau des scores</button>
     <button class="btn" data-go="settings">Paramètres</button>
@@ -352,6 +358,20 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       <div id="qList" class="scroll"></div>
       <button class="btn small ghost" id="resetQ" style="margin-top:10px">Restaurer les questions d'origine</button>
     </div>
+    <div class="box">
+      <h3>Action ou Vérité : ajouter à la banque</h3>
+      <label for="avMode">Mode</label><select id="avMode"></select>
+      <label for="avType">Type</label>
+      <select id="avType"><option value="truth">Vérité</option><option value="action">Action</option></select>
+      <form id="avForm">
+        <label for="avText">Ta question ou ton action</label>
+        <input type="text" id="avText" maxlength="200" required placeholder="Quelle est la dernière fois que tu as...">
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+      <p class="sub" id="avCount" style="text-align:left"></p>
+      <div id="avList" class="scroll"></div>
+      <p class="sub" style="text-align:left">En direct pendant une partie : crée un salon Action ou Vérité (menu Multijoueur) et coche « Je suis régie ». Tu choisis alors les prochaines questions depuis ton téléphone.</p>
+    </div>
     <button class="btn ghost back" data-go="menu">← Retour</button>
   </section>
 
@@ -435,6 +455,11 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
         <label for="lobbyRounds">Nombre de manches</label>
         <select id="lobbyRounds"><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select>
       </div>
+      <div class="box">
+        <label for="lobbyKind">Type de partie</label>
+        <select id="lobbyKind"><option value="vote">Qui est le plus... (votes)</option><option value="aov">Action ou Vérité (avec régie)</option></select>
+        <div class="switch"><span>Je suis régie : je ne joue pas, je contrôle la partie</span><input type="checkbox" id="lobbyRegie"></div>
+      </div>
       <button class="btn primary" id="lobbyStart">Lancer la partie</button>
     </div>
     <p class="sub" id="lobbyWait">En attente de l'hôte...</p>
@@ -450,6 +475,43 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <div id="mpVoteBtns"></div>
     <button class="btn" id="mpForce">Forcer le résultat (hôte)</button>
     <button class="btn ghost back mpLeaveBtn">Quitter la partie</button>
+  </section>
+
+  <!-- MULTIJOUEUR : ACTION OU VÉRITÉ -->
+  <section class="screen" id="mpAov">
+    <div class="hud"><span id="avHud"></span><span id="avWho"></span></div>
+    <div id="avMain"></div>
+    <div id="avPanel" hidden>
+      <h2>Régie en direct</h2>
+      <div class="box">
+        <label for="avNext">Donner la main à</label>
+        <select id="avNext"></select>
+        <button class="btn" id="avGive">Donner la main</button>
+        <div class="row"><button class="btn" id="avHostDone">Valider : fait</button><button class="btn" id="avHostPass">Valider : passé</button></div>
+      </div>
+      <div class="box">
+        <h3>Choisir la prochaine question</h3>
+        <label for="avQType">Type</label>
+        <select id="avQType"><option value="truth">Vérité</option><option value="action">Action</option></select>
+        <label for="avQText">Ta question ou ton action</label>
+        <input type="text" id="avQText" maxlength="200" placeholder="Écris la tienne ou choisis dans la banque">
+        <div class="row"><button class="btn" id="avQueue">Mettre en file</button><button class="btn primary" id="avNow">Envoyer maintenant</button></div>
+        <label for="avBankFilter">Banque (filtrer)</label>
+        <input type="text" id="avBankFilter" placeholder="Mot-clé">
+        <div id="avBank" class="scroll"></div>
+        <h3>File d'attente</h3>
+        <div id="avQueueList"></div>
+      </div>
+      <div class="box">
+        <label for="avMsg">Message à tous les écrans</label>
+        <input type="text" id="avMsg" maxlength="120" placeholder="Il est derrière vous...">
+        <button class="btn" id="avSend">Afficher à tous</button>
+      </div>
+      <button class="btn" id="avReroll">Tirer une autre question</button>
+      <button class="btn ghost" id="avEnd">Terminer la partie (retour au salon)</button>
+    </div>
+    <button class="btn ghost back mpLeaveBtn">Quitter le salon</button>
+    <button class="btn ghost mpCloseBtn">Fermer le salon</button>
   </section>
 
   <!-- MULTIJOUEUR : RÉSULTAT -->
@@ -652,7 +714,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
 
   /* ---------- Effets d'horreur ---------- */
-  const HORROR = new Set(["mini", "scores", "vote", "result", "final", "mpLobby", "mpVote", "mpResult", "mpFinal"]);
+  const HORROR = new Set(["mpAov", "mini", "scores", "vote", "result", "final", "mpLobby", "mpVote", "mpResult", "mpFinal"]);
   const WHISPERS = ["Il est derrière toi...", "Ne te retourne pas", "Tu n'es pas seul", "Ils savent ce que tu as fait", "Un de vous ment", "Elle t'observe...", "Trop tard..."];
   const calmMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -1118,12 +1180,30 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     SC.players = []; saveSc(); renderScores();
   });
 
+
+  /* ---------- Action ou Vérité : banque et tirage ---------- */
+  const AOV = {"truth": {"chill": ["Quelle est la chose la plus bizarre que tu fais quand tu es seul(e) ?", "Quel est ton plus gros mensonge d'enfance ?", "Quelle est la dernière chose que tu as cherchée sur Google ?", "Quel film t'a le plus fait pleurer ?", "Quelle est ta plus grande peur irrationnelle ?", "Quel est le pire cadeau que tu aies reçu ?", "Qu'est-ce que tu as déjà volé, même un tout petit truc ?", "Quel est ton pire souvenir de l'école ?", "Quelle est la chose la plus honteuse dans ta playlist ?", "Quel talent caché as-tu que personne ici ne connaît ?", "Quel est ton plus gros fou rire raté ?", "Si tu pouvais effacer un souvenir, lequel serait-ce ?", "Quelle est ta plus grosse manie ?", "Quel plat fais-tu semblant d'aimer ?", "Quelle est la chose la plus enfantine que tu fais encore ?", "Quel surnom ridicule as-tu déjà eu ?", "As-tu déjà fait semblant d'être malade ? Pourquoi ?", "Quelle application utilises-tu le plus, et combien de temps par jour ?", "Quel est le dernier mensonge que tu as dit ?", "Quelle est la pire chose que tu aies mangée ?", "De quoi es-tu le plus fier(e) ?", "Quelle est la dernière chose qui t'a vraiment fait peur ?", "Quelle règle aimes-tu enfreindre ?", "À quel âge as-tu arrêté de croire au Père Noël ?", "Quel métier ferais-tu si l'argent n'existait pas ?", "Quelle est la pire note que tu aies eue, et pourquoi ?", "Quel est le conseil le plus nul que tu aies suivi ?", "Quelle série as-tu regardée en cachette ?", "Quelle est la chose la plus folle que tu aies faite sur un coup de tête ?", "Quel est ton pire défaut ?", "As-tu déjà été puni(e) injustement ?", "Quel est le secret le plus inoffensif que tu gardes ?", "Quelle est ta pire habitude à table ?", "Quelle personne de ce groupe connais-tu le moins ?", "Quelle est la dernière chose que tu as perdue ?", "Quel est ton plus vieux doudou ou objet fétiche ?", "Quel est ton pire souvenir de vacances ?", "Quelle est la chose que tu fais le plus mal ?", "Quelle est ta honte la plus récente ?", "Quel est le dernier truc que tu as acheté pour rien ?"], "cash": ["Quel est ton plus gros crush de tous les temps ?", "Quelle est la pire date de ta vie ?", "As-tu déjà stalké un(e) ex ? Combien de fois ?", "Quel est le message le plus gênant que tu aies envoyé ?", "As-tu déjà eu un crush sur quelqu'un de ce groupe ?", "Quelle est la chose la plus romantique que tu aies faite ?", "Quelle est ta pire expérience en couple ?", "Quel est le premier truc que tu regardes chez quelqu'un ?", "Quel est ton plus gros red flag ?", "As-tu déjà ghosté quelqu'un ?", "Quelle est la pire phrase de drague que tu aies entendue ?", "Qui, dans ce groupe, se marie en premier ?", "À quel âge as-tu eu ton premier rencard ?", "As-tu déjà dit « je t'aime » sans le penser ?", "Décris ton type idéal en trois mots.", "As-tu déjà été jaloux(se) sans le montrer ?", "Quelle est la pire excuse que tu aies donnée pour rompre ?", "As-tu déjà lu les messages de ton/ta partenaire ?", "Quelle est ta destination idéale pour un week-end à deux ?", "Quelle est la chose la plus folle que tu aies faite par amour ?", "As-tu déjà aimé quelqu'un qui n'était pas libre ?", "Quel est ton plus gros regret amoureux ?", "As-tu déjà fait semblant d'aimer quelqu'un ?", "Quel est le moment le plus gênant de ta vie amoureuse ?", "As-tu déjà dragué quelqu'un devant tout le monde ?", "Quelle est la chose que tu n'oserais jamais avouer à ton crush ?", "As-tu déjà été largué(e) par message ?", "Combien dépenses-tu en sorties par mois, environ ?", "As-tu déjà menti sur ton argent de poche ou ton salaire ?", "Quelle est la chose la plus chère que tu aies achetée sur un coup de tête ?", "Préfères-tu être riche et seul(e), ou fauché(e) et amoureux(se) ?", "As-tu déjà prêté de l'argent que tu n'as jamais récupéré ?", "Quel est le pire cadeau que tu aies offert à un(e) ex ?", "As-tu déjà rompu pour une raison ridicule ?", "Avec qui, ici, pourrais-tu parler d'amour sans gêne ?", "As-tu déjà caché une relation à un(e) ami(e) ?", "Quel est ton plus gros dossier compromettant sur toi-même ?", "Quelle chanson te fait penser à ton/ta ex ?", "Quelle est la dernière personne qui t'a fait rougir ?", "Quelle qualité cherches-tu absolument chez quelqu'un ?"], "absurde": ["Si tu étais un monstre, lequel serais-tu et pourquoi ?", "Quel animal détestes-tu le plus, et pourquoi ?", "Si c'était une apocalypse zombie, qui du groupe sacrifies-tu en premier ?", "Quelle est la chose la plus étrange que tu aies mangée ?", "Quel super-pouvoir inutile voudrais-tu avoir ?", "As-tu déjà parlé à un objet ? Lequel ?", "Quelle est la pire chose que tu aies faite en public sans le vouloir ?", "Si tu pouvais échanger ta vie avec un personnage de dessin animé, lequel ?", "Quel est le truc le plus bizarre dans ton historique de recherche ?", "As-tu déjà eu peur d'un objet inoffensif ?", "Dans un film d'horreur, quel rôle jouerais-tu ?", "Quel est ton plan pour échapper à un tueur dans une maison ?", "As-tu déjà parlé à un inconnu en le confondant avec quelqu'un d'autre ?", "Quel est ton talent le plus inutile ?", "Quelle est la phrase la plus bizarre que tu aies dite en dormant ?", "Quel objet de ta chambre te ferait honte si quelqu'un le voyait ?", "Si tu devais être enfermé(e) avec quelqu'un du groupe, qui choisis-tu ?", "Quelle est ta théorie du complot préférée ?", "Quel est le pire déguisement que tu aies porté ?", "Quel est le pire endroit où tu t'es endormi(e) ?", "Quelle créature surnaturelle crois-tu exister ?", "As-tu déjà cru voir un fantôme ? Raconte.", "Quel est le rêve le plus bizarre dont tu te souviennes ?", "Quel serait ton nom de scène de catcheur ?", "Quel serait ton pire nom de super-héros ?", "Qui du groupe survivrait le plus longtemps dans un film d'horreur ?", "Quel est le dernier truc absurde que tu as acheté en ligne ?", "Quel bruit nocturne te fait le plus flipper ?", "Quelle légende urbaine as-tu déjà crue ?", "Si tu étais un fantôme, qui hanterais-tu en premier ?"]}, "action": {"chill": ["Imite un animal de ton choix jusqu'à ce qu'on devine lequel.", "Fais 10 pompes.", "Danse sans musique pendant 20 secondes.", "Raconte une blague. Si personne ne rit, recommence.", "Chante le refrain d'une chanson de ton choix.", "Parle avec une voix aiguë jusqu'à ton prochain tour.", "Fais un compliment sincère à chaque joueur.", "Mime un film : les autres doivent le deviner.", "Fais l'avion pendant 15 secondes.", "Garde les yeux fermés jusqu'à ton prochain tour.", "Récite l'alphabet à l'envers.", "Garde un sourire forcé pendant 30 secondes.", "Écris un poème de deux vers sur la personne à ta gauche.", "Prends un selfie avec la pire grimace possible.", "Parle sans dire la lettre « e » pendant 30 secondes.", "Défile comme un mannequin dans la pièce.", "Mime une publicité : les autres devinent.", "Fais le tour de la pièce à cloche-pied.", "Raconte ta journée comme un présentateur de journal télé.", "Soutiens le regard de quelqu'un 20 secondes sans rire.", "Fais le robot jusqu'à ton prochain tour.", "Tiens la planche 30 secondes.", "Reste immobile comme une statue jusqu'à ton prochain tour.", "Fais une déclaration d'amour à un objet de la pièce.", "Répète « Les chaussettes de l'archiduchesse » 5 fois vite.", "Dessine un portrait de quelqu'un en 30 secondes, les yeux fermés.", "Imite la démarche de quelqu'un du groupe.", "Fais la pub d'un objet que tu as sous la main.", "Fais 15 squats en chantant.", "Raconte un souvenir d'enfance en chuchotant.", "Fais rire quelqu'un sans parler en 30 secondes.", "Invente une chanson sur le joueur à ta droite.", "Parle comme un pirate pendant trois tours.", "Remercie à voix haute trois personnes réelles qui t'ont aidé(e).", "Fais ton meilleur cri de victoire.", "Fais deviner ton film préféré avec seulement des bruitages."], "cash": ["Envoie un emoji cœur à un contact choisi par le groupe.", "Montre la dernière photo de ta galerie.", "Fais ton meilleur regard de séducteur(trice) pendant 10 secondes.", "Fais une déclaration d'amour dramatique à quelqu'un du groupe.", "Note chaque joueur sur 10 pour son style.", "Lis à voix haute ta dernière conversation avec un(e) ami(e), sans nommer la personne.", "Montre l'écran d'accueil de ton téléphone.", "Écris un SMS de drague nul pour quelqu'un du groupe et lis-le à voix haute.", "Raconte ton plus gros râteau.", "Complimente chaque joueur avec un mot commençant par la même lettre.", "Mime la pire façon de draguer quelqu'un.", "Joue une scène de rupture avec un joueur de ton choix.", "Joue une demande en mariage ridicule.", "Joue un couple qui se dispute, tous les rôles toi-même.", "Dis ce que tu pensais de chaque joueur la première fois que tu l'as rencontré.", "Fais un slow le plus lent du monde avec un joueur, sans le toucher.", "Donne ton avis honnête sur la tenue de chaque joueur.", "Défends l'idée la plus nulle pendant 30 secondes comme si c'était vital.", "Écris un faux profil de rencontre pour le joueur à ta droite.", "Décris ton rencard idéal avec des détails absurdes.", "Fais semblant de pleurer 15 secondes, puis éclate de rire.", "Dis une phrase de drague en trois langues, même inventées.", "Lance les yeux doux au joueur le plus éloigné de toi.", "Raconte une histoire d'amour inventée avec trois mots donnés par le groupe.", "Imite la façon dont ton/ta crush rirait de tes blagues.", "Fais une demande en amitié dramatique à un joueur.", "Fais un compliment à un joueur sans utiliser un seul adjectif.", "Décris la personne de ce groupe qui drague le mieux, sans la nommer, jusqu'à ce qu'on devine.", "Écris le pire SMS de réconciliation de l'histoire.", "Fais une annonce de mariage fictive avec la personne à ta gauche."], "absurde": ["Pousse le cri d'un fantôme pendant 10 secondes.", "Marche comme un zombie jusqu'à ton prochain tour.", "Parle uniquement en rimes pendant une minute.", "Donne une conférence de 30 secondes sur « l'importance des chaussettes ».", "Explique comment survivre à un clown tueur.", "Baptise un objet de la pièce et fais son éloge funèbre.", "Mime un fantôme qui rate son apparition.", "Fais un discours d'investiture en roi/reine des monstres.", "Danse comme si le sol était de la lave.", "Joue la mort la plus dramatique de l'histoire.", "Prends la voix d'un démon qui commande une pizza.", "Parle à l'envers, syllabe par syllabe, pendant 20 secondes.", "Invente une légende urbaine en trois phrases.", "Interview un fantôme : tu joues les deux rôles.", "Adopte un accent étranger jusqu'à ton prochain tour.", "Pousse ton plus beau cri de film d'horreur.", "Écris ton prénom avec le coude.", "Fais un duel de regards avec un joueur : le premier qui rit perd.", "Joue un monstre qui a peur d'un humain.", "Avance dans la pièce comme dans un film au ralenti.", "Fais la pub d'un produit maudit.", "Cache un objet : les autres le cherchent, tu réponds seulement chaud/froid.", "Joue la scène d'ouverture d'un film d'horreur tout(e) seul(e).", "Parle comme un vampire qui a un rhume.", "Fais le bruitage d'une poursuite en forêt, dans le noir.", "Présente la météo de l'enfer.", "Raconte la vie d'un fantôme qui a peur des humains.", "Joue un exorcisme raté.", "Fais une pub pour un cercueil écologique.", "Explique à un extraterrestre comment fonctionne un grille-pain."]}};
+  const AOV_GEN = {"action": [{"t": "Imite {0} pendant {1} secondes {2}.", "v": [["un poulet", "un robot cassé", "un professeur énervé", "un fantôme timide", "un zombie pressé", "un présentateur météo", "un chat en colère", "un pingouin", "un vampire affamé", "un dragon enrhumé", "un pirate perdu", "un grand-père au volant"], ["10", "15", "20"], ["en dansant", "en marchant", "en chantant", "en criant doucement", "sans bouger les mains", "les yeux fermés"]]}, {"t": "Fais {0} {1} {2}.", "v": [["5", "10", "15", "20"], ["pompes", "squats", "abdos", "sauts de grenouille", "fentes", "tours sur toi-même"], ["en chantant", "en gloussant", "avec un accent", "les yeux fermés"]]}, {"t": "Parle {0} jusqu'à ton prochain tour.", "v": [["avec l'accent pirate", "comme un robot", "en chuchotant", "en rimant", "comme un présentateur télé", "avec la voix d'un monstre", "comme une star d'Hollywood", "comme un vieux sage"]]}, {"t": "Chante {0} {1}.", "v": [["le refrain", "le premier couplet"], ["d'une chanson de ton enfance", "d'un générique de dessin animé", "d'une chanson d'amour en opéra", "d'une chanson triste en riant", "d'un tube de l'été en chuchotant"]]}, {"t": "{0}, puis {1}.", "v": [["Fais un compliment à un joueur", "Imite un animal", "Fais une grimace", "Chante une note aiguë", "Fais le robot", "Danse"], ["fais 5 squats", "tourne sur toi-même 3 fois", "dis ton prénom à l'envers", "fais semblant de dormir", "pousse un cri de fantôme", "salue tout le monde comme un roi"]]}, {"t": "Mime {0} sans parler : les autres devinent.", "v": [["un métier", "un sport", "un film d'horreur", "un animal", "une émotion", "un objet du quotidien", "un personnage de dessin animé", "une tâche ménagère"]]}], "truth": [{"t": "Quelle est la dernière fois que tu as {0} ?", "v": [["pleuré", "menti", "ri aux larmes", "eu honte", "eu peur", "été jaloux(se)", "rougi", "triché", "boudé", "dansé tout(e) seul(e)"]]}, {"t": "Quel est ton pire souvenir lié à {0} ?", "v": [["l'école", "un rencard", "un voyage", "un repas de famille", "une soirée", "un entretien", "le sport", "un transport", "les vacances", "un anniversaire"]]}, {"t": "Quelle note sur 10 te donnes-tu en {0} ? Justifie.", "v": [["cuisine", "danse", "drague", "chant", "mensonge", "sport", "humour", "ponctualité", "discrétion", "courage"]]}, {"t": "Raconte {0} {1}.", "v": [["ta pire gaffe", "ton plus gros fou rire", "ta pire honte", "ton souvenir le plus étrange", "ton plus gros mensonge"], ["à l'école", "en vacances", "en famille", "en soirée", "au travail", "avec un ex", "dans un transport", "devant des inconnus"]]}, {"t": "Qui, dans ce groupe, {0} ? Pourquoi ?", "v": [["serait le plus mauvais menteur", "ferait le meilleur détective", "survivrait le plus longtemps dans un film d'horreur", "rirait en premier à un enterrement", "oublierait le plus vite un secret", "paniquerait le plus face à un fantôme"]]}, {"t": "Que choisis-tu : {0} ?", "v": [["passer une nuit dans un cimetière ou dans une maison hantée", "dire la vérité à ton crush ou tout oublier", "perdre ton téléphone ou ta voix pendant une semaine", "affronter un clown tueur ou un fantôme bavard", "ne plus jamais manger de dessert ou ne plus jamais dormir tard", "tout savoir sur ton avenir ou rien regretter du passé", "vivre sans musique ou sans images", "être invisible ou lire dans les pensées"]]}]};
+  const AC = Object.assign({ truth: {}, action: {} }, load("qelp_aov", {}));
+  const saveAc = () => save("qelp_aov", AC);
+  const aovPool = (type, m) => [...AOV[type][m], ...((AC[type] || {})[m] || [])];
+  const aovGen = type => { const g = pick(AOV_GEN[type]); let t = g.t; g.v.forEach((o, i) => { t = t.replace("{" + i + "}", pick(o)); }); return t; };
+  function aovDraw(type, m, used) {
+    for (let i = 0; i < 14; i++) {
+      const t = Math.random() < .3 ? aovGen(type) : pick(aovPool(type, m));
+      if (!used.has(t)) { used.add(t); return t; }
+    }
+    used.clear(); return pick(aovPool(type, m));
+  }
+  const aovCombos = () => Object.values(AOV_GEN).flat().reduce((n, g) => n + g.v.reduce((x, o) => x * o.length, 1), 0);
+
   /* ---------- Mini-jeux (un seul téléphone) ---------- */
   const MG = { pending: null, S: null };
   const MINIS = {
     duel: { name: "Duel", min: 3, desc: "Deux joueurs sont tirés au hasard, les autres votent pour le gagnant." },
     tf: { name: "Vrai ou faux", min: 3, desc: "Un joueur répond en secret à une affirmation sur lui, les autres devinent." },
     who: { name: "Qui a dit ça ?", min: 3, desc: "Chacun écrit une phrase anonyme, puis tout le monde devine l'auteur." },
+    aov: { name: "Action ou Vérité", min: 2, desc: "Un bouton Action, un bouton Vérité. Une énorme banque, par niveau de mode." },
     never: { name: "Jamais je n'ai...", min: 2, desc: "Une affirmation s'affiche : touche ceux qui l'ont déjà fait." }
   };
   const TF_STATEMENTS = [
@@ -1154,6 +1234,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#miniList").innerHTML = Object.entries(MINIS).map(([k, m]) =>
       `<div class="mode" data-mini="${k}"><h3>${esc(m.name)}</h3><p>${esc(m.desc)}</p><p style="margin-top:4px">${m.min}+ joueurs</p></div>`).join("");
   }
+  $("#aovBtn").onclick = () => { show("players"); MG.pending = "aov"; toast("Action ou Vérité : entre les prénoms"); };
   $("#miniList").addEventListener("click", e => {
     const m = e.target.closest("[data-mini]"); if (!m) return;
     show("players");
@@ -1180,6 +1261,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       S.order = shuffle([...pl.keys()]); S.sts = shuffle(TF_STATEMENTS); tfNew(S);
     } else if (t === "who") {
       S.prompt = pick(WHO_PROMPTS); S.texts = []; S.phase = "write"; S.total = pl.length;
+    } else if (t === "aov") {
+      S.order = shuffle([...pl.keys()]); S.used = new Set(); S.phase = "choose"; S.total = Infinity;
     } else {
       S.sts = shuffle(NEVER_STATEMENTS).slice(0, total); S.total = S.sts.length; S.phase = "turn"; S.d = { sel: new Set() };
     }
@@ -1259,6 +1342,17 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
         `<div class="qrow"><span>${nm(d.it.a)} (a trompé)</span><b>+${d.gs.filter((g, k) => d.guess[k] !== d.it.a).length}</b></div></div>` +
         `<button class="btn primary" data-a="next">${S.round + 1 >= S.total ? "Voir le verdict final" : "Suivant"}</button>`;
     },
+    aov(S) {
+      const cur = S.order[S.round % S.players.length];
+      if (S.phase === "choose") {
+        return passHTML(cur, `<p class="sub">Choisis ton destin.</p>` +
+          `<button class="btn aovbtn" data-a="av" data-i="1">Action</button><button class="btn aovbtn truth" data-a="av" data-i="0">Vérité</button>` +
+          `<button class="btn ghost" data-a="end">Terminer la partie</button>`);
+      }
+      return `<div class="question"><em>${nm(cur)} · ${S.d.type === "action" ? "ACTION" : "VÉRITÉ"}</em><span>${esc(S.d.text)}</span></div>` +
+        `<div class="row"><button class="btn primary" data-a="done">✔ Fait</button><button class="btn" data-a="pass">Je passe</button></div>` +
+        `<button class="btn ghost" data-a="reroll">Autre question</button><button class="btn ghost" data-a="end">Terminer la partie</button>`;
+    },
     never(S) {
       return `<div class="question"><em>${T("L'ÂME COUPABLE", "À TOI")}</em><span>${esc(S.sts[S.round])}</span></div>` +
         `<p class="sub">Touche ceux qui l'ont déjà fait.</p>` +
@@ -1270,10 +1364,10 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   function mgRender() {
     const S = MG.S; if (!S) return;
     $("#mgName").textContent = MINIS[S.type].name;
-    $("#mgHud").textContent = S.phase === "write" ? "Écriture" : `Manche ${S.round + 1}/${S.total}`;
+    $("#mgHud").textContent = S.phase === "write" ? "Écriture" : S.type === "aov" ? `Tour ${S.round + 1}` : `Manche ${S.round + 1}/${S.total}`;
     $("#mgBody").innerHTML = MGR[S.type](S);
     show("mini");
-    if (S.phase === "res" || (S.type === "duel" && S.phase === "res")) jolt("mini");
+    if (S.phase === "res" || (S.type === "aov" && S.phase === "prompt")) jolt("mini");
   }
   function mgAdvance() {
     const S = MG.S; S.round++;
@@ -1335,6 +1429,12 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
           S.phase = "res";
         }
       }
+    } else if (S.type === "aov") {
+      const cur = S.order[S.round % S.players.length];
+      if (a === "end") { mgFinal(); return; }
+      if (a === "av") { d.type = i === 1 ? "action" : "truth"; d.text = aovDraw(d.type, mode, S.used); S.phase = "prompt"; }
+      else if (a === "reroll") d.text = aovDraw(d.type, mode, S.used);
+      else if (a === "done" || a === "pass") { if (a === "done") S.scores[cur]++; S.round++; S.phase = "choose"; S.d = {}; }
     } else if (S.type === "never") {
       if (a === "tog") { d.sel.has(i) ? d.sel.delete(i) : d.sel.add(i); }
       else if (a === "ok") {
@@ -1380,7 +1480,26 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const m = $("#qMode").value;
     questions[m] = [...MODES[m].q]; save(K.q, questions); renderAdmin();
   });
+  $("#avMode").innerHTML = Object.entries(MODES).map(([k, m]) => `<option value="${k}">${esc(m.name)}</option>`).join("");
+  function renderAvAdmin() {
+    const m = $("#avMode").value, t = $("#avType").value, own = (AC[t] || {})[m] || [];
+    $("#avCount").textContent = `Banque du mode : ${AOV.truth[m].length + (AC.truth[m] || []).length} vérités, ${AOV.action[m].length + (AC.action[m] || []).length} actions, plus environ ${aovCombos()} variantes générées.`;
+    $("#avList").innerHTML = own.length
+      ? own.map((q, i) => `<div class="qrow"><span>${esc(q)}</span><button class="btn small ghost" data-delav="${i}">✕</button></div>`).join("")
+      : '<p class="empty">Aucun ajout perso pour ce mode et ce type.</p>';
+  }
+  ["#avMode", "#avType"].forEach(sel => $(sel).addEventListener("change", renderAvAdmin));
+  $("#avForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const m = $("#avMode").value, t = $("#avType").value, v = $("#avText").value.trim(); if (!v) return;
+    (AC[t][m] = AC[t][m] || []).push(v); saveAc(); $("#avText").value = ""; renderAvAdmin(); toast("Ajouté à la banque");
+  });
+  $("#avList").addEventListener("click", e => {
+    const b = e.target.closest("[data-delav]"); if (!b) return;
+    AC[$("#avType").value][$("#avMode").value].splice(+b.dataset.delav, 1); saveAc(); renderAvAdmin();
+  });
   function renderAdmin() {
+    renderAvAdmin();
     $("#adminLog").innerHTML = logHTML(changelog, true);
     const m = $("#qMode").value, list = questions[m];
     $("#qCount").textContent = list.length;
@@ -1477,7 +1596,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   function enterRoom(code) {
     if (MP) MP.unsubs.forEach(u => { try { u(); } catch {} });
     save("qelp_room", code);
-    const m = MP = { code, room: null, players: {}, votes: {}, unsubs: [], host: false, busy: false, voting: false, closing: false };
+    const m = MP = { code, room: null, players: {}, votes: {}, picks: {}, dones: {}, used: new Set(), unsubs: [], host: false, busy: false, voting: false, closing: false };
     const base = "rooms/" + code;
     const err = () => toast("Connexion perdue avec le salon");
     m.unsubs.push(DB.doc(base).onSnapshot(s => {
@@ -1494,6 +1613,14 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     }, err));
     m.unsubs.push(DB.collection(base + "/votes").onSnapshot(q => {
       m.votes = Object.fromEntries(q.docs.map(d => [d.id, d.data()]));
+      mpRender(); hostCheck();
+    }, err));
+    m.unsubs.push(DB.collection(base + "/aovpick").onSnapshot(q => {
+      m.picks = Object.fromEntries(q.docs.map(d => [d.id, d.data()]));
+      mpRender(); hostCheck();
+    }, err));
+    m.unsubs.push(DB.collection(base + "/aovdone").onSnapshot(q => {
+      m.dones = Object.fromEntries(q.docs.map(d => [d.id, d.data()]));
       mpRender(); hostCheck();
     }, err));
   }
@@ -1519,6 +1646,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     else if (st === "vote") renderMpVote();
     else if (st === "result") renderMpResult();
     else if (st === "final") renderMpFinal();
+    else if (st === "aov") renderAov();
   }
 
   function renderLobby() {
@@ -1532,14 +1660,39 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#lobbyWait").hidden = MP.host;
     $("#lobbyMode").value = r.mode;
     $("#lobbyRounds").value = String(r.rounds);
-    $("#lobbyStart").disabled = ids.length < 2;
-    $("#lobbyStart").textContent = ids.length < 2 ? "Il faut au moins 2 joueurs" : "Lancer la partie";
+    const aov = r.kind === "aov", min = aov ? 1 : 2;
+    $("#lobbyKind").value = r.kind || "vote";
+    $("#lobbyRegie").checked = !!r.regie;
+    $("#lobbyInfo").textContent = `${aov ? "Action ou Vérité · " : ""}${(MODES[r.mode] || {}).name || ""}${aov ? "" : " · " + r.rounds + " manches"}`;
+    $("#lobbyStart").disabled = ids.length < min;
+    $("#lobbyStart").textContent = ids.length < min ? `Il faut au moins ${min} joueur${min > 1 ? "s" : ""}` : "Lancer la partie";
     showIf("mpLobby");
   }
   $("#lobbyMode").onchange = e => MP && MP.host && DB.doc("rooms/" + MP.code).update({ mode: e.target.value }).catch(mpErr);
   $("#lobbyRounds").onchange = e => MP && MP.host && DB.doc("rooms/" + MP.code).update({ rounds: +e.target.value }).catch(mpErr);
+  $("#lobbyKind").onchange = e => MP && MP.host && DB.doc("rooms/" + MP.code).update({ kind: e.target.value }).catch(mpErr);
+  $("#lobbyRegie").onchange = async e => {
+    const m = MP; if (!m || !m.host) return;
+    try {
+      await DB.doc("rooms/" + m.code).update({ regie: e.target.checked });
+      const ref = DB.doc(`rooms/${m.code}/players/${myId}`);
+      if (e.target.checked) await ref.delete();
+      else await ref.set({ name: load("qelp_myname", "") || "Hôte", joined: Date.now() });
+    } catch (err) { mpErr(err); }
+  };
   $("#lobbyStart").onclick = async () => {
     const m = MP; if (!m || !m.host) return;
+    if (m.room.kind === "aov") {
+      const ids = Object.keys(m.players); if (!ids.length) return;
+      const order = shuffle(ids); m.used = new Set();
+      try {
+        await DB.doc("rooms/" + m.code).set({
+          ...m.room, status: "aov", game: Date.now(),
+          aov: { seq: 1, phase: "choose", turn: order[0], order, idx: 0, type: null, text: "", queue: [], banner: { id: 0, text: "" }, scores: {} }
+        });
+      } catch (e) { mpErr(e); }
+      return;
+    }
     const r = m.room, pool = questions[r.mode] || [];
     if (!pool.length) { toast("Ce mode n'a aucune question (voir Panel Admin)"); return; }
     if (Object.keys(m.players).length < 2) return;
@@ -1577,6 +1730,12 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   $("#mpForce").onclick = () => finishRound();
 
   function hostCheck() {
+    if (MP && MP.host && MP.room && MP.room.status === "aov" && MP.room.aov) {
+      const a = MP.room.aov;
+      if (a.phase === "choose") { const pk = MP.picks[a.turn]; if (pk && pk.seq === a.seq) aovPrompt(pk.type); }
+      else if (a.phase === "prompt") { const dn = MP.dones[a.turn]; if (dn && dn.seq === a.seq) aovNext(dn.res); }
+      return;
+    }
     if (!MP || !MP.host || !MP.room || MP.room.status !== "vote") return;
     const total = Object.keys(MP.players).length;
     if (total >= 2 && validVotes().length >= total) finishRound();
@@ -1643,6 +1802,109 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const m = MP; if (!m || !m.host) return;
     try { await DB.doc("rooms/" + m.code).set({ ...m.room, status: "lobby", round: 0, qs: [], result: null, titles: {}, received: {} }); } catch (e) { mpErr(e); }
   };
+
+
+  /* --- Action ou Vérité en salon : l'hôte (régie) tient l'état --- */
+  const aovSave = patch => DB.doc("rooms/" + MP.code).set({ ...MP.room, aov: { ...MP.room.aov, ...patch } });
+  async function aovAct(fn) {
+    const m = MP; if (!m || !m.host || m.busy) return;
+    m.busy = true;
+    try { await fn(m, m.room.aov); } catch (e) { mpErr(e); }
+    m.busy = false;
+  }
+  const aovPrompt = type => aovAct(async (m, a) => {
+    const q = [...(a.queue || [])], k = q.findIndex(x => x.type === type);
+    const text = k >= 0 ? q.splice(k, 1)[0].text : aovDraw(type, m.room.mode, m.used);
+    await aovSave({ phase: "prompt", type, text, queue: q });
+  });
+  const aovNext = res => aovAct(async (m, a) => {
+    let order = a.order, idx = a.idx + 1;
+    if (idx >= order.length) { order = shuffle(order); idx = 0; }
+    const scores = { ...(a.scores || {}) };
+    if (res === "done") scores[a.turn] = (scores[a.turn] || 0) + 1;
+    await aovSave({ order, idx, turn: order[idx], seq: a.seq + 1, phase: "choose", type: null, text: "", scores });
+  });
+
+  function renderAov() {
+    const r = MP.room, a = r.aov; if (!a) return;
+    const mine = a.turn === myId, tn = pname(a.turn);
+    const picked = MP.picks[myId] && MP.picks[myId].seq === a.seq, doned = MP.dones[myId] && MP.dones[myId].seq === a.seq;
+    $("#avHud").textContent = "Action ou Vérité";
+    $("#avWho").textContent = (MODES[r.mode] || {}).name || "";
+    const key = a.seq + ":" + a.phase, changed = MP.avKey !== key; MP.avKey = key;
+    let html;
+    if (a.phase === "choose") {
+      html = mine
+        ? `<p class="verdict">À toi de jouer, ${pname(myId)}</p>` + (picked ? `<p class="sub">Tirage en cours...</p>` :
+          `<button class="btn aovbtn" data-av="action">Action</button><button class="btn aovbtn truth" data-av="truth">Vérité</button>`)
+        : `<p class="verdict">Au tour de ${tn}</p><p class="sub">${tn} choisit entre Action et Vérité...</p>`;
+    } else {
+      html = `<div class="question"><em>${tn} · ${a.type === "action" ? "ACTION" : "VÉRITÉ"}</em><span>${esc(a.text)}</span></div>` +
+        (mine ? (doned ? `<p class="sub">Validation...</p>` : `<div class="row"><button class="btn primary" data-av="done">✔ Fait</button><button class="btn" data-av="pass">Je passe</button></div>`)
+          : `<p class="sub">${tn} s'exécute...</p>`);
+    }
+    const sc = a.scores || {};
+    html += `<div class="box"><h3>Courage</h3><p>` + Object.keys(MP.players).map(id => `${pname(id)} <b>${sc[id] || 0}</b>`).join(" · ") + `</p></div>`;
+    $("#avMain").innerHTML = html;
+    const b = a.banner;
+    if (b && b.id && MP.avBanner !== b.id) { if (MP.avBanner !== undefined && b.text) showMsg(b.text); MP.avBanner = b.id; }
+    else if (MP.avBanner === undefined) MP.avBanner = b ? b.id : 0;
+    $("#avPanel").hidden = !MP.host;
+    if (MP.host) refreshAvPanel(a);
+    showIf("mpAov");
+    if (changed && a.phase === "prompt") jolt("mpAov");
+  }
+  function refreshAvPanel(a) {
+    const ids = Object.keys(MP.players), sig = ids.join(",");
+    if (MP.avSig !== sig) {
+      const sel = $("#avNext"), prev = sel.value;
+      sel.innerHTML = ids.map(id => `<option value="${esc(id)}">${pname(id)}</option>`).join("");
+      if (prev && MP.players[prev]) sel.value = prev;
+      MP.avSig = sig;
+    }
+    $("#avQueueList").innerHTML = (a.queue || []).length
+      ? a.queue.map((q, i) => `<div class="qrow"><span><b>${q.type === "action" ? "Action" : "Vérité"}</b> ${esc(q.text)}</span><button class="btn small ghost" data-avq="${i}">✕</button></div>`).join("")
+      : '<p class="empty">File vide : tirage au hasard dans la banque.</p>';
+    if (!MP.avBankBuilt) { MP.avBankBuilt = true; renderAvBank(); }
+  }
+  function renderAvBank() {
+    if (!MP || !MP.room) return;
+    const f = $("#avBankFilter").value.trim().toLowerCase();
+    MP.avBankList = aovPool($("#avQType").value, MP.room.mode).filter(t => !f || t.toLowerCase().includes(f)).slice(0, 60);
+    $("#avBank").innerHTML = MP.avBankList.map((t, i) => `<button class="btn small ghost" data-avb="${i}" style="width:100%;text-align:left;margin:3px 0;text-transform:none;letter-spacing:0">${esc(t)}</button>`).join("")
+      || '<p class="empty">Aucun résultat.</p>';
+  }
+  $("#avQType").addEventListener("change", renderAvBank);
+  $("#avBankFilter").addEventListener("input", renderAvBank);
+  $("#avBank").addEventListener("click", e => {
+    const b = e.target.closest("[data-avb]"); if (b && MP) $("#avQText").value = MP.avBankList[+b.dataset.avb];
+  });
+  $("#avQueueList").addEventListener("click", e => {
+    const b = e.target.closest("[data-avq]"); if (!b) return;
+    aovAct((m, a) => aovSave({ queue: a.queue.filter((q, i) => i !== +b.dataset.avq) }));
+  });
+  $("#avMain").addEventListener("click", async e => {
+    const b = e.target.closest("[data-av]"), m = MP; if (!b || !m || m.voting) return;
+    const a = m.room.aov, v = b.dataset.av; m.voting = true;
+    try {
+      if (v === "done" || v === "pass") await DB.doc(`rooms/${m.code}/aovdone/${myId}`).set({ seq: a.seq, res: v });
+      else await DB.doc(`rooms/${m.code}/aovpick/${myId}`).set({ seq: a.seq, type: v });
+      vibrate(40);
+    } catch (err) { mpErr(err); }
+    m.voting = false;
+  });
+  const avText = () => $("#avQText").value.trim();
+  $("#avGive").onclick = () => aovAct((m, a) => { const id = $("#avNext").value; if (id) return aovSave({ turn: id, seq: a.seq + 1, phase: "choose", type: null, text: "" }); });
+  $("#avHostDone").onclick = () => MP && MP.room.aov && MP.room.aov.phase === "prompt" && aovNext("done");
+  $("#avHostPass").onclick = () => MP && MP.room.aov && MP.room.aov.phase === "prompt" && aovNext("pass");
+  $("#avQueue").onclick = () => { const t = avText(); if (!t) { toast("Écris une question"); return; }
+    aovAct((m, a) => aovSave({ queue: [...(a.queue || []), { type: $("#avQType").value, text: t }] })); $("#avQText").value = ""; };
+  $("#avNow").onclick = () => { const t = avText(); if (!t) { toast("Écris une question"); return; }
+    aovAct((m, a) => aovSave({ phase: "prompt", type: $("#avQType").value, text: t })); $("#avQText").value = ""; };
+  $("#avSend").onclick = () => { const t = $("#avMsg").value.trim(); if (!t) return;
+    aovAct((m, a) => aovSave({ banner: { id: Date.now(), text: t } })); $("#avMsg").value = ""; };
+  $("#avReroll").onclick = () => aovAct((m, a) => a.phase === "prompt" ? aovSave({ text: aovDraw(a.type, m.room.mode, m.used) }) : null);
+  $("#avEnd").onclick = e => twoStep(e.currentTarget, "Confirmer la fin ?", () => aovAct((m) => DB.doc("rooms/" + m.code).set({ ...m.room, status: "lobby", aov: null })));
 
   document.querySelectorAll(".mpLeaveBtn").forEach(b => b.addEventListener("click", () =>
     twoStep(b, "Confirmer ?", () => { mpLeave(true); show("menu"); })));
