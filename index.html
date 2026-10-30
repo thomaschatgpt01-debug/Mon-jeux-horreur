@@ -372,7 +372,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       </form>
       <p class="sub" id="avCount" style="text-align:left"></p>
       <div id="avList" class="scroll"></div>
-      <p class="sub" style="text-align:left">Pour piloter une partie en direct, coche « Je suis régie » dans le salon d'une partie Action ou Vérité (une seule personne).</p>
+      <p class="sub" style="text-align:left">Dans une partie Action ou Vérité en salon, le premier arrivé devient régie et pilote la partie en direct.</p>
     </div>
     <button class="btn ghost back" data-go="menu">← Retour</button>
   </section>
@@ -449,9 +449,6 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       <h3>Joueurs (<span id="lobbyCount">0</span>)</h3>
       <div class="chips" id="lobbyPlayers"></div>
       <p class="sub" id="lobbyInfo" style="text-align:left;margin:8px 0 0"></p>
-    </div>
-    <div class="box" id="lobbyRegieRow" hidden>
-      <div class="switch"><span id="lobbyRegieTxt"></span><input type="checkbox" id="lobbyRegie"></div>
     </div>
     <div id="lobbyHost">
       <div class="box">
@@ -1680,11 +1677,6 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#lobbyRounds").value = String(r.rounds);
     const aov = r.kind === "aov", min = aov ? 1 : 2;
     $("#lobbyKind").value = r.kind || "vote";
-    const rg = MP.regie, mineR = !!(rg && rg.id === myId);
-    $("#lobbyRegieRow").hidden = !aov;
-    $("#lobbyRegie").checked = mineR;
-    $("#lobbyRegie").disabled = !!(rg && !mineR);
-    $("#lobbyRegieTxt").textContent = rg && !mineR ? `Régie : ${rg.name} (déjà prise)` : "Je suis régie : je ne joue pas, je pilote la partie (1 seule personne)";
     $("#lobbyInfo").textContent = `${aov ? "Action ou Vérité · " : ""}${(MODES[r.mode] || {}).name || ""}${aov ? "" : " · " + r.rounds + " manches"}`;
     $("#lobbyStart").disabled = ids.length < min;
     $("#lobbyStart").textContent = ids.length < min ? `Il faut au moins ${min} joueur${min > 1 ? "s" : ""}` : "Lancer la partie";
@@ -1696,23 +1688,6 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     if (!MP || !MP.host) return;
     DB.doc("rooms/" + MP.code).update({ kind: e.target.value }).catch(mpErr);
     if (e.target.value !== "aov" && MP.regie) DB.doc(`rooms/${MP.code}/regie/main`).delete().catch(() => {});
-  };
-  $("#lobbyRegie").onchange = async e => {
-    const m = MP; if (!m) return;
-    const ref = DB.doc(`rooms/${m.code}/regie/main`), pl = DB.doc(`rooms/${m.code}/players/${myId}`);
-    try {
-      if (e.target.checked) {
-        const cur = await ref.get();
-        if (cur.exists && cur.data().id !== myId) { toast("La régie est déjà prise"); e.target.checked = false; return; }
-        await ref.set({ id: myId, name: load("qelp_myname", "") || "Régie" });
-        const chk = await ref.get();
-        if (!chk.exists || chk.data().id !== myId) { toast("La régie est déjà prise"); return; }
-        await pl.delete();
-      } else {
-        const cur = await ref.get();
-        if (cur.exists && cur.data().id === myId) await ref.delete(); // le joueur est réinscrit par l'écoute de la régie
-      }
-    } catch (err) { mpErr(err); }
   };
   $("#lobbyStart").onclick = async () => {
     const m = MP; if (!m || !m.host) return;
