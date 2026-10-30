@@ -562,6 +562,18 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     }
   };
 
+  const PACKS = [{ v: 1, mode: "cash", q: [
+      "...susceptible de stresser et d'effacer son message en moins d'une seconde après l'avoir envoyé ?",
+      "...susceptible d'avoir envoyé « regarde ce que j'ai reçu » à un(e) pote en se trompant de discussion ?",
+      "...susceptible de répéter 50 fois dans sa tête ce qu'il/elle va dire avant d'aller parler à quelqu'un dans les couloirs ?",
+      "...susceptible de rougir instantanément dès qu'on prononce le prénom d'une personne précise ?",
+      "...susceptible de s'inventer une excuse complètement impossible pour cacher qu'il/elle est timide ?",
+      "...susceptible d'avoir fait exprès de passer plusieurs fois devant le casier ou la table de quelqu'un pour se faire remarquer ?",
+      "...susceptible de dire qu'il/elle n'a jamais embrassé personne alors qu'en vrai... personne n'en sait rien ?",
+      "...susceptible d'avoir déjà embrassé quelqu'un en cachette (ou en jeu) mais de refuser de balancer le nom ?",
+      "...susceptible de paniquer totalement et de demander des conseils sur Internet juste avant son premier rencard ?",
+      "...susceptible de passer pour un expert en amour alors qu'il/elle est totalement célibataire ?"
+  ] }];
   const DEFAULT_LOG = [
     { v: "v1.0.0", d: "30/10/2026", t: "Sortie du jeu : 3 modes, votes, résultats et panel admin." }
   ];
@@ -571,10 +583,15 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   const load = (k, def) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch { return def; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
+  PACKS.forEach(pk => MODES[pk.mode].q.push(...pk.q.filter(q => !MODES[pk.mode].q.includes(q))));
   const defaultQuestions = () => Object.fromEntries(Object.entries(MODES).map(([k, m]) => [k, [...m.q]]));
   let changelog = load(K.log, DEFAULT_LOG);
   let questions = load(K.q, null) || defaultQuestions();
   for (const k in MODES) if (!Array.isArray(questions[k])) questions[k] = [...MODES[k].q];
+  // Nouveaux packs de questions : ajoutés une seule fois aux listes déjà enregistrées
+  const seeded = load("qelp_packs", 0);
+  PACKS.filter(pk => pk.v > seeded).forEach(pk => pk.q.forEach(q => { if (!questions[pk.mode].includes(q)) questions[pk.mode].push(q); }));
+  if (seeded < Math.max(...PACKS.map(pk => pk.v))) { save("qelp_packs", Math.max(...PACKS.map(pk => pk.v))); save(K.q, questions); }
   let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false }, load(K.set, {}));
   let names = load(K.pl, ["", ""]);
   let mode = load(K.mode, "chill");
