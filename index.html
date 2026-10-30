@@ -1764,6 +1764,16 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   $("#mpForce").onclick = () => finishRound();
 
   function hostCheck() {
+    // Action ou Vérité : le premier arrivé dans le salon devient régie automatiquement (une seule fois)
+    if (MP && MP.host && MP.room && MP.room.status === "lobby") {
+      if (MP.room.kind !== "aov") MP.autoRegie = false;
+      else if (!MP.autoRegie && !MP.regie && Object.keys(MP.players).length) {
+        MP.autoRegie = true;
+        const [id, pl] = Object.entries(MP.players).sort((x, y) => (x[1].joined || 0) - (y[1].joined || 0))[0], code = MP.code;
+        DB.doc(`rooms/${code}/regie/main`).set({ id, name: pl.name || "Régie" })
+          .then(() => DB.doc(`rooms/${code}/players/${id}`).delete()).catch(() => {});
+      }
+    }
     if (MP && MP.host && MP.room && MP.room.status === "aov" && MP.room.aov) {
       const a = MP.room.aov;
       if (a.phase === "choose") { const pk = MP.picks[a.turn]; if (pk && pk.seq === a.seq) aovPrompt(pk.type); }
