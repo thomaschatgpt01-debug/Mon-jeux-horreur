@@ -312,6 +312,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       <select id="setRounds">
         <option value="5">5</option><option value="10">10</option>
         <option value="15">15</option><option value="20">20</option>
+        <option value="0">∞ Infini</option>
       </select>
       <div class="switch"><span>Autoriser de voter pour soi-même</span><input type="checkbox" id="setSelf"></div>
       <div class="switch"><span>Effets d'horreur (chargement et parties)</span><input type="checkbox" id="setFx"></div>
@@ -405,6 +406,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <div class="verdict" id="verdict"></div>
     <div class="box" id="scoreBox"></div>
     <button class="btn primary" id="nextRound">Question suivante</button>
+    <button class="btn ghost" id="endNow" hidden>Terminer la partie</button>
   </section>
 
   <!-- GAME: FINAL -->
@@ -455,7 +457,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
         <label for="lobbyMode">Mode de jeu</label>
         <select id="lobbyMode"></select>
         <label for="lobbyRounds">Nombre de manches</label>
-        <select id="lobbyRounds"><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select>
+        <select id="lobbyRounds"><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="0">∞ Infini</option></select>
       </div>
       <div class="box">
         <label for="lobbyKind">Type de partie</label>
@@ -523,6 +525,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <div class="verdict" id="mpVerdict"></div>
     <div class="box" id="mpScoreBox"></div>
     <button class="btn primary" id="mpNext">Question suivante</button>
+    <button class="btn ghost" id="mpEndNow" hidden>Terminer la partie</button>
     <p class="sub" id="mpNextWait">En attente de l'hôte...</p>
   </section>
 
@@ -990,8 +993,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     if (new Set(low).size !== low.length) { toast("Deux joueurs ont le même prénom"); return; }
     const pool = questions[mode];
     if (!pool.length) { toast("Ce mode n'a aucune question (voir Panel Admin)"); return; }
-    const total = Math.min(settings.rounds, pool.length);
+    const inf = !settings.rounds, total = inf ? pool.length : Math.min(settings.rounds, pool.length);
     G = {
+      inf, pool,
       players: clean,
       qs: shuffle(pool).slice(0, total),
       round: 0, voter: 0,
@@ -1012,8 +1016,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     show("vote");
   }
   function renderVote() {
-    const r = G.round + 1, t = G.qs.length;
-    $("#hudRound").textContent = `Manche ${r}/${t}`;
+    const r = G.round + 1, t = G.inf ? "" : "/" + G.qs.length;
+    $("#hudRound").textContent = `Manche ${r}${t}`;
     $("#hudMode").textContent = MODES[mode].name;
     $("#qTxt").textContent = G.qs[G.round].replace(/^\.\.\./, "...");
     $("#voterName").textContent = G.players[G.voter];
@@ -1036,7 +1040,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     G.votes.forEach((v, i) => G.received[i] += v);
     winners.forEach(i => G.titles[i]++);
 
-    $("#hudRound2").textContent = `Manche ${G.round + 1}/${G.qs.length}`;
+    $("#hudRound2").textContent = `Manche ${G.round + 1}${G.inf ? "" : "/" + G.qs.length}`;
     $("#hudMode2").textContent = MODES[mode].name;
     $("#qTxt2").textContent = G.qs[G.round];
     const order = G.players.map((p, i) => i).sort((a, b) => G.votes[b] - G.votes[a]);
@@ -1047,7 +1051,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#verdict").innerHTML = winners.length === 1
       ? T(`☠ ${w[0]} est condamné(e) ☠`, `${w[0]} est désigné(e)`)
       : T(`⚖ Égalité maudite : ${w.join(", ")} ⚖`, `Égalité : ${w.join(", ")}`);
-    $("#nextRound").textContent = G.round + 1 >= G.qs.length ? "Voir le verdict final" : "Question suivante";
+    $("#nextRound").textContent = !G.inf && G.round + 1 >= G.qs.length ? "Voir le verdict final" : "Question suivante";
+    $("#endNow").hidden = !G.inf;
     $("#scoreBox").hidden = !settings.scores;
     $("#scoreBox").innerHTML = scoreTable(G.players.map((pl, i) => ({ n: esc(pl), t: G.titles[i], v: G.received[i], w: winners.includes(i) })));
     show("result");
@@ -1058,8 +1063,10 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
   $("#nextRound").onclick = () => {
     G.round++;
+    if (G.inf && G.round >= G.qs.length) G.qs.push(...shuffle(G.pool));
     if (G.round >= G.qs.length) showFinal(); else newRound();
   };
+  $("#endNow").onclick = e => twoStep(e.currentTarget, "Confirmer la fin ?", () => showFinal());
 
   function showFinal() {
     const order = G.players.map((p, i) => i).sort((a, b) => G.titles[b] - G.titles[a] || G.received[b] - G.received[a]);
@@ -1253,7 +1260,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const pl = validNames(); if (!pl) return;
     const t = MG.pending, info = MINIS[t];
     if (pl.length < info.min) { toast(`Il faut au moins ${info.min} joueurs`); return; }
-    const total = Math.min(settings.rounds, 10);
+    const total = Math.min(settings.rounds || 10, 10);
     const S = MG.S = { type: t, players: pl, scores: pl.map(() => 0), round: 0, total, phase: "", d: {} };
     if (t === "duel") {
       const pool = questions[mode].length ? questions[mode] : MODES.chill.q;
@@ -1670,14 +1677,14 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#lobbyPlayers").innerHTML = ids.map(id =>
       `<span class="chip ${id === myId ? "me" : ""}">${pname(id)}${id === r.hostId ? "<small>hôte</small>" : ""}</span>`).join("") +
       (MP.regie ? `<span class="chip ${MP.regie.id === myId ? "me" : ""}">${esc(MP.regie.name || "?")}<small>régie</small></span>` : "");
-    $("#lobbyInfo").textContent = `${(MODES[r.mode] || {}).name || ""} · ${r.rounds} manches`;
+    $("#lobbyInfo").textContent = `${(MODES[r.mode] || {}).name || ""} · ${r.rounds ? r.rounds + " manches" : "manches infinies"}`;
     $("#lobbyHost").hidden = !MP.host;
     $("#lobbyWait").hidden = MP.host;
     $("#lobbyMode").value = r.mode;
     $("#lobbyRounds").value = String(r.rounds);
     const aov = r.kind === "aov", min = aov ? 1 : 2;
     $("#lobbyKind").value = r.kind || "vote";
-    $("#lobbyInfo").textContent = `${aov ? "Action ou Vérité · " : ""}${(MODES[r.mode] || {}).name || ""}${aov ? "" : " · " + r.rounds + " manches"}`;
+    $("#lobbyInfo").textContent = `${aov ? "Action ou Vérité · " : ""}${(MODES[r.mode] || {}).name || ""}${aov ? "" : " · " + (r.rounds ? r.rounds + " manches" : "manches infinies")}`;
     $("#lobbyStart").disabled = ids.length < min;
     $("#lobbyStart").textContent = ids.length < min ? `Il faut au moins ${min} joueur${min > 1 ? "s" : ""}` : "Lancer la partie";
     showIf("mpLobby");
@@ -1708,7 +1715,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     try {
       await DB.doc("rooms/" + m.code).set({
         ...r, status: "vote", game: Date.now(), round: 0,
-        qs: shuffle(pool).slice(0, Math.min(r.rounds, pool.length)),
+        qs: shuffle(pool).slice(0, r.rounds ? Math.min(r.rounds, pool.length) : pool.length),
         titles: {}, received: {}, result: null
       });
     } catch (e) { mpErr(e); }
@@ -1717,7 +1724,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   function renderMpVote() {
     const r = MP.room, ids = Object.keys(MP.players), vv = validVotes();
     const mine = vv.some(([id]) => id === myId);
-    $("#mpHud").textContent = `Manche ${r.round + 1}/${r.qs.length}`;
+    $("#mpHud").textContent = `Manche ${r.round + 1}${r.rounds ? "/" + r.qs.length : ""}`;
     $("#mpHudMode").textContent = (MODES[r.mode] || {}).name || "";
     $("#mpQ").textContent = r.qs[r.round];
     $("#mpVoteHint").textContent = mine ? `Vote enregistré. En attente des autres (${vv.length}/${ids.length})...` : "Choisis en secret.";
@@ -1779,7 +1786,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   function renderMpResult() {
     const r = MP.room, res = r.result || { counts: {}, winners: [] };
     const ids = Object.keys(res.counts), n = ids.length || 1;
-    $("#mpHud2").textContent = `Manche ${r.round + 1}/${r.qs.length}`;
+    $("#mpHud2").textContent = `Manche ${r.round + 1}${r.rounds ? "/" + r.qs.length : ""}`;
     $("#mpHudMode2").textContent = (MODES[r.mode] || {}).name || "";
     $("#mpQ2").textContent = r.qs[r.round];
     $("#mpBars").innerHTML = ids.sort((a, b) => res.counts[b] - res.counts[a]).map(id =>
@@ -1787,8 +1794,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       `<div class="track"><i style="width:${res.counts[id] / n * 100}%"></i></div></div>`).join("");
     const w = res.winners.map(pname);
     $("#mpVerdict").innerHTML = w.length === 1 ? T(`☠ ${w[0]} est condamné(e) ☠`, `${w[0]} est désigné(e)`) : T(`⚖ Égalité maudite : ${w.join(", ")} ⚖`, `Égalité : ${w.join(", ")}`);
-    const last = r.round + 1 >= r.qs.length;
+    const last = r.rounds && r.round + 1 >= r.qs.length;
     $("#mpNext").textContent = last ? "Voir le verdict final" : "Question suivante";
+    $("#mpEndNow").hidden = !(MP.host && !r.rounds);
     $("#mpNext").hidden = !MP.host;
     $("#mpNextWait").hidden = MP.host;
     const t = r.titles || {}, rc = r.received || {};
@@ -1800,11 +1808,16 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
   $("#mpNext").onclick = async () => {
     const m = MP; if (!m || !m.host) return;
-    const r = m.room, last = r.round + 1 >= r.qs.length;
+    const r = m.room, more = !r.rounds && r.round + 1 >= r.qs.length, last = r.rounds && r.round + 1 >= r.qs.length;
     try {
-      await DB.doc("rooms/" + m.code).set(last ? { ...r, status: "final" } : { ...r, status: "vote", round: r.round + 1, result: null });
+      await DB.doc("rooms/" + m.code).set(last ? { ...r, status: "final" }
+        : { ...r, status: "vote", round: r.round + 1, result: null, qs: more ? [...r.qs, ...shuffle(questions[r.mode] || [])] : r.qs });
     } catch (e) { mpErr(e); }
   };
+  $("#mpEndNow").onclick = e => twoStep(e.currentTarget, "Confirmer la fin ?", async () => {
+    const m = MP; if (!m || !m.host) return;
+    try { await DB.doc("rooms/" + m.code).set({ ...m.room, status: "final" }); } catch (err) { mpErr(err); }
+  });
 
   function renderMpFinal() {
     const r = MP.room, t = r.titles || {}, rc = r.received || {}, ids = Object.keys(MP.players);
