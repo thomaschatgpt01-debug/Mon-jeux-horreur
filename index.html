@@ -372,7 +372,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       </form>
       <p class="sub" id="avCount" style="text-align:left"></p>
       <div id="avList" class="scroll"></div>
-      <p class="sub" style="text-align:left">En direct pendant une partie : crée un salon Action ou Vérité (menu Multijoueur) et coche « Je suis régie ». Tu choisis alors les prochaines questions depuis ton téléphone.</p>
+      <p class="sub" style="text-align:left">Pour piloter une partie en direct, coche « Je suis régie » dans le salon d'une partie Action ou Vérité (une seule personne).</p>
     </div>
     <button class="btn ghost back" data-go="menu">← Retour</button>
   </section>
@@ -450,6 +450,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       <div class="chips" id="lobbyPlayers"></div>
       <p class="sub" id="lobbyInfo" style="text-align:left;margin:8px 0 0"></p>
     </div>
+    <div class="box" id="lobbyRegieRow" hidden>
+      <div class="switch"><span id="lobbyRegieTxt"></span><input type="checkbox" id="lobbyRegie"></div>
+    </div>
     <div id="lobbyHost">
       <div class="box">
         <label for="lobbyMode">Mode de jeu</label>
@@ -459,8 +462,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       </div>
       <div class="box">
         <label for="lobbyKind">Type de partie</label>
-        <select id="lobbyKind"><option value="vote">Qui est le plus... (votes)</option><option value="aov">Action ou Vérité (avec régie)</option></select>
-        <div class="switch"><span>Je suis régie : je ne joue pas, je contrôle la partie</span><input type="checkbox" id="lobbyRegie"></div>
+        <select id="lobbyKind"><option value="vote">Qui est le plus... (votes)</option><option value="aov">Action ou Vérité</option></select>
       </div>
       <button class="btn primary" id="lobbyStart">Lancer la partie</button>
     </div>
@@ -1599,7 +1601,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   function enterRoom(code) {
     if (MP) MP.unsubs.forEach(u => { try { u(); } catch {} });
     save("qelp_room", code);
-    const m = MP = { code, room: null, players: {}, votes: {}, picks: {}, dones: {}, used: new Set(), unsubs: [], host: false, busy: false, voting: false, closing: false };
+    const m = MP = { code, room: null, players: {}, votes: {}, picks: {}, dones: {}, regie: null, cmdReady: false, lastCmd: null, used: new Set(), unsubs: [], host: false, busy: false, voting: false, closing: false };
     const base = "rooms/" + code;
     const err = () => toast("Connexion perdue avec le salon");
     m.unsubs.push(DB.doc(base).onSnapshot(s => {
@@ -1621,6 +1623,18 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     m.unsubs.push(DB.collection(base + "/aovpick").onSnapshot(q => {
       m.picks = Object.fromEntries(q.docs.map(d => [d.id, d.data()]));
       mpRender(); hostCheck();
+    }, err));
+    m.unsubs.push(DB.collection(base + "/regie").onSnapshot(q => {
+      const d = q.docs.find(x => x.id === "main"), was = !!(m.regie && m.regie.id === myId);
+      m.regie = d ? d.data() : null;
+      if (was && !(m.regie && m.regie.id === myId) && !m.players[myId] && m.room && m.room.status === "lobby")
+        DB.doc(`rooms/${code}/players/${myId}`).set({ name: load("qelp_myname", "") || "Joueur", joined: Date.now() }).catch(() => {});
+      mpRender(); hostCheck();
+    }, err));
+    m.unsubs.push(DB.collection(base + "/regiecmd").onSnapshot(q => {
+      const d = q.docs.find(x => x.id === "main"), c = d ? d.data() : null;
+      if (!m.cmdReady) { m.cmdReady = true; m.lastCmd = c ? c.n : null; return; }
+      if (c && c.n !== m.lastCmd) { m.lastCmd = c.n; if (m.host && m.room && m.room.status === "aov") runCmd(c.op, c.args || {}); }
     }, err));
     m.unsubs.push(DB.collection(base + "/aovdone").onSnapshot(q => {
       m.dones = Object.fromEntries(q.docs.map(d => [d.id, d.data()]));
@@ -1657,7 +1671,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#lobbyCode").textContent = r.code;
     $("#lobbyCount").textContent = ids.length;
     $("#lobbyPlayers").innerHTML = ids.map(id =>
-      `<span class="chip ${id === myId ? "me" : ""}">${pname(id)}${id === r.hostId ? "<small>hôte</small>" : ""}</span>`).join("");
+      `<span class="chip ${id === myId ? "me" : ""}">${pname(id)}${id === r.hostId ? "<small>hôte</small>" : ""}</span>`).join("") +
+      (MP.regie ? `<span class="chip ${MP.regie.id === myId ? "me" : ""}">${esc(MP.regie.name || "?")}<small>régie</small></span>` : "");
     $("#lobbyInfo").textContent = `${(MODES[r.mode] || {}).name || ""} · ${r.rounds} manches`;
     $("#lobbyHost").hidden = !MP.host;
     $("#lobbyWait").hidden = MP.host;
@@ -1665,7 +1680,11 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#lobbyRounds").value = String(r.rounds);
     const aov = r.kind === "aov", min = aov ? 1 : 2;
     $("#lobbyKind").value = r.kind || "vote";
-    $("#lobbyRegie").checked = !!r.regie;
+    const rg = MP.regie, mineR = !!(rg && rg.id === myId);
+    $("#lobbyRegieRow").hidden = !aov;
+    $("#lobbyRegie").checked = mineR;
+    $("#lobbyRegie").disabled = !!(rg && !mineR);
+    $("#lobbyRegieTxt").textContent = rg && !mineR ? `Régie : ${rg.name} (déjà prise)` : "Je suis régie : je ne joue pas, je pilote la partie (1 seule personne)";
     $("#lobbyInfo").textContent = `${aov ? "Action ou Vérité · " : ""}${(MODES[r.mode] || {}).name || ""}${aov ? "" : " · " + r.rounds + " manches"}`;
     $("#lobbyStart").disabled = ids.length < min;
     $("#lobbyStart").textContent = ids.length < min ? `Il faut au moins ${min} joueur${min > 1 ? "s" : ""}` : "Lancer la partie";
@@ -1673,14 +1692,26 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
   $("#lobbyMode").onchange = e => MP && MP.host && DB.doc("rooms/" + MP.code).update({ mode: e.target.value }).catch(mpErr);
   $("#lobbyRounds").onchange = e => MP && MP.host && DB.doc("rooms/" + MP.code).update({ rounds: +e.target.value }).catch(mpErr);
-  $("#lobbyKind").onchange = e => MP && MP.host && DB.doc("rooms/" + MP.code).update({ kind: e.target.value }).catch(mpErr);
+  $("#lobbyKind").onchange = e => {
+    if (!MP || !MP.host) return;
+    DB.doc("rooms/" + MP.code).update({ kind: e.target.value }).catch(mpErr);
+    if (e.target.value !== "aov" && MP.regie) DB.doc(`rooms/${MP.code}/regie/main`).delete().catch(() => {});
+  };
   $("#lobbyRegie").onchange = async e => {
-    const m = MP; if (!m || !m.host) return;
+    const m = MP; if (!m) return;
+    const ref = DB.doc(`rooms/${m.code}/regie/main`), pl = DB.doc(`rooms/${m.code}/players/${myId}`);
     try {
-      await DB.doc("rooms/" + m.code).update({ regie: e.target.checked });
-      const ref = DB.doc(`rooms/${m.code}/players/${myId}`);
-      if (e.target.checked) await ref.delete();
-      else await ref.set({ name: load("qelp_myname", "") || "Hôte", joined: Date.now() });
+      if (e.target.checked) {
+        const cur = await ref.get();
+        if (cur.exists && cur.data().id !== myId) { toast("La régie est déjà prise"); e.target.checked = false; return; }
+        await ref.set({ id: myId, name: load("qelp_myname", "") || "Régie" });
+        const chk = await ref.get();
+        if (!chk.exists || chk.data().id !== myId) { toast("La régie est déjà prise"); return; }
+        await pl.delete();
+      } else {
+        const cur = await ref.get();
+        if (cur.exists && cur.data().id === myId) await ref.delete(); // le joueur est réinscrit par l'écoute de la régie
+      }
     } catch (err) { mpErr(err); }
   };
   $("#lobbyStart").onclick = async () => {
@@ -1815,6 +1846,25 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     try { await fn(m, m.room.aov); } catch (e) { mpErr(e); }
     m.busy = false;
   }
+  const runCmd = (op, args) => {
+    const m = MP; if (!m || !m.host || !m.room.aov) return;
+    if (op === "done" || op === "pass") { if (m.room.aov.phase === "prompt") aovNext(op); return; }
+    return aovAct(async (mm, a) => {
+      if (op === "give") await aovSave({ turn: args.id, seq: a.seq + 1, phase: "choose", type: null, trap: false, text: "" });
+      else if (op === "queue") await aovSave({ queue: [...(a.queue || []), { type: args.type, text: args.text }] });
+      else if (op === "queueDel") await aovSave({ queue: (a.queue || []).filter((q, i) => i !== args.i) });
+      else if (op === "now") await aovSave({ phase: "prompt", type: args.type, trap: false, text: args.text });
+      else if (op === "banner") await aovSave({ banner: { id: Date.now(), text: args.text } });
+      else if (op === "reroll") { if (a.phase === "prompt") await aovSave({ text: aovDraw(a.type, mm.room.mode, mm.used) }); }
+      else if (op === "end") await DB.doc("rooms/" + mm.code).set({ ...mm.room, status: "lobby", aov: null });
+    });
+  };
+  // La régie peut être un autre appareil que l'hôte : ses commandes passent par un document que l'hôte exécute
+  const regieCmd = (op, args = {}) => {
+    const m = MP; if (!m) return;
+    if (m.host) runCmd(op, args);
+    else DB.doc(`rooms/${m.code}/regiecmd/main`).set({ n: Date.now() + Math.random(), op, args }).catch(mpErr);
+  };
   const aovPrompt = pickType => aovAct(async (m, a) => {
     const trap = pickType === "trap", type = trap ? pick(["truth", "action"]) : pickType;
     const q = [...(a.queue || [])], k = q.findIndex(x => x.type === type);
@@ -1853,8 +1903,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const b = a.banner;
     if (b && b.id && MP.avBanner !== b.id) { if (MP.avBanner !== undefined && b.text) showMsg(b.text); MP.avBanner = b.id; }
     else if (MP.avBanner === undefined) MP.avBanner = b ? b.id : 0;
-    $("#avPanel").hidden = !MP.host;
-    if (MP.host) refreshAvPanel(a);
+    const regie = !!(MP.regie && MP.regie.id === myId);
+    $("#avPanel").hidden = !regie;
+    if (regie) refreshAvPanel(a);
     showIf("mpAov");
     if (changed && a.phase === "prompt") jolt("mpAov");
   }
@@ -1885,7 +1936,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   });
   $("#avQueueList").addEventListener("click", e => {
     const b = e.target.closest("[data-avq]"); if (!b) return;
-    aovAct((m, a) => aovSave({ queue: a.queue.filter((q, i) => i !== +b.dataset.avq) }));
+    regieCmd("queueDel", { i: +b.dataset.avq });
   });
   $("#avMain").addEventListener("click", async e => {
     const b = e.target.closest("[data-av]"), m = MP; if (!b || !m || m.voting) return;
@@ -1898,17 +1949,17 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     m.voting = false;
   });
   const avText = () => $("#avQText").value.trim();
-  $("#avGive").onclick = () => aovAct((m, a) => { const id = $("#avNext").value; if (id) return aovSave({ turn: id, seq: a.seq + 1, phase: "choose", type: null, text: "" }); });
-  $("#avHostDone").onclick = () => MP && MP.room.aov && MP.room.aov.phase === "prompt" && aovNext("done");
-  $("#avHostPass").onclick = () => MP && MP.room.aov && MP.room.aov.phase === "prompt" && aovNext("pass");
+  $("#avGive").onclick = () => { const id = $("#avNext").value; if (id) regieCmd("give", { id }); };
+  $("#avHostDone").onclick = () => regieCmd("done");
+  $("#avHostPass").onclick = () => regieCmd("pass");
   $("#avQueue").onclick = () => { const t = avText(); if (!t) { toast("Écris une question"); return; }
-    aovAct((m, a) => aovSave({ queue: [...(a.queue || []), { type: $("#avQType").value, text: t }] })); $("#avQText").value = ""; };
+    regieCmd("queue", { type: $("#avQType").value, text: t }); $("#avQText").value = ""; };
   $("#avNow").onclick = () => { const t = avText(); if (!t) { toast("Écris une question"); return; }
-    aovAct((m, a) => aovSave({ phase: "prompt", type: $("#avQType").value, trap: false, text: t })); $("#avQText").value = ""; };
+    regieCmd("now", { type: $("#avQType").value, text: t }); $("#avQText").value = ""; };
   $("#avSend").onclick = () => { const t = $("#avMsg").value.trim(); if (!t) return;
-    aovAct((m, a) => aovSave({ banner: { id: Date.now(), text: t } })); $("#avMsg").value = ""; };
-  $("#avReroll").onclick = () => aovAct((m, a) => a.phase === "prompt" ? aovSave({ text: aovDraw(a.type, m.room.mode, m.used) }) : null);
-  $("#avEnd").onclick = e => twoStep(e.currentTarget, "Confirmer la fin ?", () => aovAct((m) => DB.doc("rooms/" + m.code).set({ ...m.room, status: "lobby", aov: null })));
+    regieCmd("banner", { text: t }); $("#avMsg").value = ""; };
+  $("#avReroll").onclick = () => regieCmd("reroll");
+  $("#avEnd").onclick = e => twoStep(e.currentTarget, "Confirmer la fin ?", () => regieCmd("end"));
 
   document.querySelectorAll(".mpLeaveBtn").forEach(b => b.addEventListener("click", () =>
     twoStep(b, "Confirmer ?", () => { mpLeave(true); show("menu"); })));
