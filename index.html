@@ -1526,10 +1526,12 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     if (!v) { v = "g" + Math.random().toString(36).slice(2, 10); try { localStorage.setItem("qelp_uid", v); } catch {} }
     return v;
   };
+  const SB_URL = "https://ngevztwuanwzapecxnsr.supabase.co";
+  const SB_KEY = "sb_publishable_xpGDFUUxD89SgcHNd7j2Eg_arG6X9Uo"; // clé publique, protégée par les règles RLS de la table
   let MODE = null; // "db" (artefact Claude) ou "p2p" (hébergement libre, via PeerJS)
   (async () => {
     try {
-      if (!window.claude || !claude.use) { MODE = "p2p"; myId = localId(); $("#mpBtn").hidden = false; return; }
+      if (!window.claude || !claude.use) { MODE = SB_URL ? "sb" : "p2p"; myId = localId(); $("#mpBtn").hidden = false; return; }
       const [db, user] = await Promise.all([claude.use("db"), claude.use("user")]);
       if (!db) return;
       DB = db; MODE = "db";
@@ -1545,7 +1547,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
 
   function renderMpMenu() {
     $("#mpName").value = load("qelp_myname", "");
-    $("#mpWarn").hidden = MODE !== "p2p" && canWrite !== false;
+    $("#mpWarn").hidden = MODE === "sb" || (MODE !== "p2p" && canWrite !== false);
     $("#mpWarn").textContent = MODE === "p2p"
       ? "Mode sans serveur : l'hôte doit garder cette page ouverte pendant toute la partie."
       : "Ton accès est en lecture seule : demande à l'hôte de te passer en Contributeur pour jouer en ligne.";
@@ -1559,7 +1561,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const name = myName(); if (!name) { toast("Entre ton prénom"); return; }
     try {
       let code = null;
-      if (MODE === "p2p") code = await p2pHost();
+      if (MODE === "sb") code = await sbHost();
+      else if (MODE === "p2p") code = await p2pHost();
       else for (let i = 0; i < 6 && !code; i++) {
         const c = randCode();
         if (!(await DB.doc("rooms/" + c).get()).exists) code = c;
@@ -1581,7 +1584,10 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   $("#mpResume").onclick = () => joinRoom(load("qelp_room", ""), "");
 
   async function joinRoom(code, name) {
-    if (MODE === "p2p") {
+    if (MODE === "sb") {
+      try { await sbConnect(code); }
+      catch { toast("Serveur injoignable, réessaie"); return; }
+    } else if (MODE === "p2p") {
       try { await p2pConnect(code); }
       catch { toast("Code introuvable ou hôte hors ligne"); forget(); renderMpMenu(); return; }
     }
@@ -1968,6 +1974,57 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       try { await DB.doc("rooms/" + m.code).delete(); } catch (e) { m.closing = false; mpErr(e); }
     })));
 
+
+  /* ---------- Salons en ligne : Supabase (table qelp_docs + temps réel) ---------- */
+  let SB = null;
+  const loadSupabase = () => window.supabase ? Promise.resolve() : new Promise((res, rej) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
+    sc.onload = res; sc.onerror = () => rej({ type: "network" });
+    document.head.appendChild(sc);
+  });
+  async function sbClient() {
+    await loadSupabase();
+    return SB || (SB = window.supabase.createClient(SB_URL, SB_KEY, { realtime: { params: { eventsPerSecond: 20 } } }));
+  }
+  async function sbOpen(code) {
+    destroyNet();
+    const sb = await sbClient(), store = new Store(), prefix = "rooms/" + code;
+    const inRoom = path => path === prefix || path.startsWith(prefix + "/");
+    const ch = sb.channel("qelp-" + code + "-" + Math.random().toString(36).slice(2, 6));
+    ch.on("postgres_changes", { event: "*", schema: "public", table: "qelp_docs" }, pl => {
+      if (pl.eventType === "DELETE") { const path = pl.old && pl.old.path; if (path && inRoom(path)) store.put(path, null); }
+      else if (pl.new && inRoom(pl.new.path)) store.put(pl.new.path, pl.new.data);
+    });
+    await new Promise((res, rej) => {
+      const t = setTimeout(() => rej({ type: "timeout" }), 10000);
+      ch.subscribe(st => { if (st === "SUBSCRIBED") { clearTimeout(t); res(); } else if (st === "CHANNEL_ERROR" || st === "TIMED_OUT") { clearTimeout(t); rej({ type: st }); } });
+    });
+    const { data, error } = await sb.from("qelp_docs").select("path,data").or(`path.eq.${prefix},path.like.${prefix}/*`);
+    if (error) throw error;
+    (data || []).forEach(r => store.put(r.path, r.data));
+    store.writer = async (op, path, d) => {
+      const out = store.apply(op, path, d);
+      const { error: e } = out === null ? await sb.from("qelp_docs").delete().eq("path", path) : await sb.from("qelp_docs").upsert({ path, data: out });
+      if (e) throw { code: "unavailable", message: e.message };
+    };
+    NET = { unsub: () => sb.removeChannel(ch) };
+    DB = store.asDB();
+    return sb;
+  }
+  async function sbHost() {
+    const sb = await sbClient();
+    sb.from("qelp_docs").delete().lt("updated_at", new Date(Date.now() - 864e5).toISOString()).then(() => {}, () => {}); // ménage des vieux salons
+    for (let i = 0; i < 8; i++) {
+      const c = randCode();
+      const { data, error } = await sb.from("qelp_docs").select("path").eq("path", "rooms/" + c).maybeSingle();
+      if (error) throw error;
+      if (!data) { await sbOpen(c); return c; }
+    }
+    throw { type: "no-code" };
+  }
+  const sbConnect = code => sbOpen(code);
+
   /* ---------- Mode sans serveur : PeerJS, l'hôte détient les données ---------- */
   const randCode = () => Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
   const lastSeg = p => p.slice(p.lastIndexOf("/") + 1);
@@ -2024,6 +2081,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   let NET = null;
   function destroyNet() {
     const n = NET; NET = null;
+    if (n && n.unsub) { try { n.unsub(); } catch {} }
     if (n && n.peer) setTimeout(() => { try { n.peer.destroy(); } catch {} }, 600);
   }
   const loadPeerJS = () => window.Peer ? Promise.resolve() : new Promise((res, rej) => {
