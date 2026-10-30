@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qui est le plus...</title>
+<style>
+:root{
+  --bg:#050505; --panel:#0e0e0e; --panel2:#151515; --line:#2a0a0a;
+  --blood:#b00018; --blood-hi:#e0102b; --text:#e8e2e2; --dim:#8a7f7f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:radial-gradient(ellipse at 50% 0%,#1a0204 0%,var(--bg) 60%) fixed;
+  color:var(--text);
+  font-family:"Courier New",Consolas,Menlo,monospace;
+  overflow-x:hidden;
+}
+body::after{ /* grain / vignette */
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.65) 100%);
+}
+button,input,select,textarea{font-family:inherit;font-size:1rem}
+
+/* ---------- Splash ---------- */
+#splash{
+  position:fixed;inset:0;z-index:100;background:#000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
+  transition:opacity 1s ease;padding:20px;
+}
+#splash.out{opacity:0;pointer-events:none}
+#splash h1{
+  color:var(--blood-hi);letter-spacing:.2em;font-size:clamp(1.2rem,5vw,2.2rem);text-align:center;
+  text-shadow:0 0 12px var(--blood);animation:flicker 2.5s infinite;
+}
+.bar{width:min(420px,80vw);height:14px;border:1px solid var(--blood);background:#0a0000;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#5a000d,var(--blood-hi));box-shadow:0 0 14px var(--blood)}
+#splashPct{color:var(--dim);font-size:.85rem}
+@keyframes flicker{0%,18%,22%,60%,64%,100%{opacity:1}20%,62%{opacity:.35}}
+
+/* ---------- Layout ---------- */
+#app{min-height:100%;padding:24px 16px 90px;display:flex;justify-content:center}
+.screen{display:none;width:min(720px,100%);animation:fade .5s ease}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+h1.title{
+  text-align:center;color:var(--blood-hi);font-size:clamp(1.8rem,7vw,3.2rem);letter-spacing:.12em;
+  margin:18px 0 6px;text-shadow:0 0 18px var(--blood);animation:flicker 4s infinite;
+}
+.sub{text-align:center;color:var(--dim);margin-bottom:24px;font-size:.9rem}
+h2{color:var(--blood-hi);letter-spacing:.1em;margin-bottom:14px;text-transform:uppercase;font-size:1.2rem}
+h3{color:var(--text);margin:18px 0 8px;font-size:1rem;letter-spacing:.06em}
+
+.btn{
+  display:block;width:100%;padding:14px 18px;margin:10px 0;cursor:pointer;
+  background:var(--panel);color:var(--text);border:1px solid var(--blood);
+  text-transform:uppercase;letter-spacing:.14em;text-align:center;
+  transition:all .2s;
+}
+.btn:hover,.btn:focus-visible{background:var(--blood);box-shadow:0 0 18px var(--blood);outline:none}
+.btn.primary{background:var(--blood);font-weight:bold}
+.btn.primary:hover{background:var(--blood-hi)}
+.btn.small{display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:.8rem}
+.btn.ghost{border-color:#3a3a3a;color:var(--dim)}
+.btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.btn:disabled:hover{background:var(--panel)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>.btn{flex:1;min-width:140px}
+
+.box{border:1px solid var(--line);background:var(--panel);padding:14px 16px;margin:16px 0}
+.box h3:first-child{margin-top:0}
+input[type=text],textarea,select{
+  width:100%;padding:11px;background:#000;color:var(--text);border:1px solid #3a0a0a;margin:4px 0;
+}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--blood-hi);box-shadow:0 0 8px var(--blood)}
+textarea{min-height:70px;resize:vertical}
+label{display:block;color:var(--dim);font-size:.85rem;margin-top:8px}
+
+/* changelog widget */
+.log-item{border-left:3px solid var(--blood);padding:6px 10px;margin:8px 0;background:var(--panel2)}
+.log-item b{color:var(--blood-hi)}
+.log-item small{color:var(--dim);margin-left:8px}
+.log-item p{margin-top:3px;font-size:.9rem;color:#cfc6c6;white-space:pre-wrap}
+.empty{color:var(--dim);font-style:italic;font-size:.9rem}
+
+/* players */
+.player-row{display:flex;gap:8px;align-items:center;margin:6px 0}
+.player-row span{color:var(--blood-hi);width:26px}
+
+/* modes */
+.mode{cursor:pointer;border:1px solid #3a0a0a;background:var(--panel);padding:14px;margin:10px 0;transition:.2s}
+.mode:hover{border-color:var(--blood-hi)}
+.mode.sel{border-color:var(--blood-hi);box-shadow:0 0 16px var(--blood) inset}
+.mode h3{margin:0 0 4px;color:var(--blood-hi)}
+.mode p{color:var(--dim);font-size:.88rem}
+
+/* game */
+.hud{display:flex;justify-content:space-between;color:var(--dim);font-size:.85rem;margin-bottom:10px}
+.question{
+  border:1px solid var(--blood);background:var(--panel);padding:26px 16px;text-align:center;
+  font-size:clamp(1.15rem,4.5vw,1.6rem);line-height:1.4;margin:10px 0 18px;box-shadow:0 0 20px rgba(176,0,24,.3);
+}
+.question em{display:block;font-style:normal;color:var(--blood-hi);font-size:.8rem;letter-spacing:.2em;margin-bottom:10px}
+.voter{text-align:center;margin:8px 0 4px;color:var(--dim)}
+.voter b{color:var(--blood-hi)}
+.res{margin:10px 0}
+.res .nm{display:flex;justify-content:space-between;margin-bottom:3px}
+.res .track{height:16px;background:#0a0000;border:1px solid #3a0a0a}
+.res .track i{display:block;height:100%;width:0;background:linear-gradient(90deg,#5a000d,var(--blood-hi));transition:width 1s ease}
+.res.win .nm{color:var(--blood-hi);font-weight:bold}
+.verdict{text-align:center;font-size:1.2rem;margin:16px 0;color:var(--blood-hi);text-shadow:0 0 10px var(--blood)}
+table{width:100%;border-collapse:collapse}
+td,th{padding:8px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--blood-hi);text-transform:uppercase;font-size:.8rem}
+td.num{text-align:right}
+.qrow{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.qrow button{flex-shrink:0}
+.scroll{max-height:260px;overflow-y:auto;padding-right:6px}
+.switch{display:flex;justify-content:space-between;align-items:center;margin:10px 0;color:var(--text)}
+.switch input{width:20px;height:20px;accent-color:var(--blood)}
+.back{margin-top:22px}
+.toast{
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);background:var(--blood);color:#fff;
+  padding:10px 18px;z-index:90;opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.toast.show{opacity:1}
+.shake{animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+body.noFx h1.title,body.noFx #splash h1{animation:none}
+
+/* ---------- Footer ---------- */
+#footer{
+  position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
+  background:linear-gradient(transparent,#000 40%);padding:22px 12px 10px;
+  color:var(--blood-hi);font-size:clamp(.7rem,2.6vw,.9rem);letter-spacing:.05em;
+  animation:pulse 2.4s ease-in-out infinite;pointer-events:none;
+}
+body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
+@keyframes pulse{
+  0%,100%{text-shadow:0 0 4px #5a000d,0 0 8px #5a000d;opacity:.75}
+  50%{text-shadow:0 0 10px var(--blood-hi),0 0 22px var(--blood),0 0 34px var(--blood);opacity:1}
+}
+</style>
+</head>
+<body>
+
+<!-- Splash -->
+<div id="splash">
+  <h1>CHARGEMENT DES ÂMES...</h1>
+  <div class="bar"><i id="splashBar"></i></div>
+  <div id="splashPct">0%</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div id="app">
+
+  <!-- MENU -->
+  <section class="screen" id="menu">
+    <h1 class="title">QUI EST LE PLUS...</h1>
+    <p class="sub">// le jeu où vos amis vous jugent //</p>
+    <button class="btn primary" data-go="players">Jouer</button>
+    <button class="btn" data-go="modes">Modes de jeu</button>
+    <button class="btn" data-go="settings">Paramètres</button>
+    <button class="btn" data-go="admin">Panel Admin</button>
+    <button class="btn" data-go="soon">Prochainement</button>
+    <div class="box">
+      <h3>☠ Dernières Mises à Jour</h3>
+      <div id="menuLog"></div>
+    </div>
+    <p class="sub">Mode actuel : <b id="curMode" style="color:var(--blood-hi)"></b></p>
+  </section>
+
+  <!-- PLAYERS -->
+  <section class="screen" id="players">
+    <h2>Les condamnés</h2>
+    <p class="sub" style="text-align:left">Entrez les prénoms (2 à 12 joueurs).</p>
+    <div id="playerList"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost" id="addPlayer">+ Ajouter un joueur</button>
+    </div>
+    <button class="btn primary" id="startGame">Lancer la partie</button>
+    <button class="btn ghost back" data-go="menu">← Retour</button>
+  </section>
+
+  <!-- MODES -->
+  <section class="screen" id="modes">
+    <h2>Modes de jeu</h2>
+    <div id="modeList"></div>
+    <button class="btn ghost back" data-go="menu">← Retour</button>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="screen" id="settings">
+    <h2>Paramètres</h2>
+    <div class="box">
+      <label for="setRounds">Nombre de manches</label>
+      <select id="setRounds">
+        <option value="5">5</option><option value="10">10</option>
+        <option value="15">15</option><option value="20">20</option>
+      </select>
+      <div class="switch"><span>Autoriser de voter pour soi-même</span><input type="checkbox" id="setSelf"></div>
+      <div class="switch"><span>Effets visuels (lueurs / scintillements)</span><input type="checkbox" id="setFx"></div>
+      <div class="switch"><span>Vibrations (mobile)</span><input type="checkbox" id="setVib"></div>
+    </div>
+    <div class="box">
+      <h3>Zone dangereuse</h3>
+      <button class="btn small ghost" id="resetPlayers">Effacer les prénoms</button>
+      <button class="btn small ghost" id="resetAll">Tout réinitialiser</button>
+    </div>
+    <button class="btn ghost back" data-go="menu">← Retour</button>
+  </section>
+
+  <!-- ADMIN -->
+  <section class="screen" id="admin">
+    <h2>Panel Admin</h2>
+
+    <div class="box">
+      <h3>Ajouter une mise à jour</h3>
+      <form id="logForm">
+        <label for="logVer">Version</label>
+        <input type="text" id="logVer" placeholder="v1.0.1" required maxlength="20">
+        <label for="logDate">Date</label>
+        <input type="text" id="logDate" placeholder="JJ/MM/AAAA" required maxlength="20">
+        <label for="logDesc">Description</label>
+        <textarea id="logDesc" required maxlength="500" placeholder="Qu'est-ce qui a changé ?"></textarea>
+        <button class="btn" type="submit">Ajouter la mise à jour</button>
+      </form>
+      <h3>Mises à jour existantes</h3>
+      <div id="adminLog" class="scroll"></div>
+    </div>
+
+    <div class="box">
+      <h3>Questions</h3>
+      <label for="qMode">Mode</label>
+      <select id="qMode"></select>
+      <form id="qForm">
+        <label for="qText">Nouvelle question (complète la phrase « Qui est le plus... »)</label>
+        <input type="text" id="qText" placeholder="...susceptible de rater son permis ?" maxlength="160" required>
+        <button class="btn" type="submit">Ajouter la question</button>
+      </form>
+      <h3>Questions du mode (<span id="qCount">0</span>)</h3>
+      <div id="qList" class="scroll"></div>
+      <button class="btn small ghost" id="resetQ" style="margin-top:10px">Restaurer les questions d'origine</button>
+    </div>
+    <button class="btn ghost back" data-go="menu">← Retour</button>
+  </section>
+
+  <!-- SOON -->
+  <section class="screen" id="soon">
+    <h2>Prochainement</h2>
+    <div class="box"><h3>🩸 Mode Cauchemar</h3><p class="empty">Des questions qui feront trembler vos amitiés... Bientôt.</p></div>
+    <div class="box"><h3>🕯 Mode Soirée Hantée</h3><p class="empty">Défis, gages et sentences. Bientôt.</p></div>
+    <div class="box"><h3>👁 Multijoueur en ligne</h3><p class="empty">Votez à distance, chacun sur son téléphone. Bientôt.</p></div>
+    <div class="box"><h3>🔪 Questions personnalisées partagées</h3><p class="empty">Exportez et importez vos pires questions. Bientôt.</p></div>
+    <button class="btn ghost back" data-go="menu">← Retour</button>
+  </section>
+
+  <!-- GAME: VOTE -->
+  <section class="screen" id="vote">
+    <div class="hud"><span id="hudRound"></span><span id="hudMode"></span></div>
+    <div class="question"><em>QUI EST LE PLUS...</em><span id="qTxt"></span></div>
+    <p class="voter">Vote de <b id="voterName"></b></p>
+    <p class="sub" id="voteHint" style="margin-bottom:8px"></p>
+    <div id="voteBtns"></div>
+    <button class="btn ghost back" id="quitGame">Abandonner</button>
+  </section>
+
+  <!-- GAME: ROUND RESULT -->
+  <section class="screen" id="result">
+    <div class="hud"><span id="hudRound2"></span><span id="hudMode2"></span></div>
+    <div class="question"><em>QUI EST LE PLUS...</em><span id="qTxt2"></span></div>
+    <div id="resBars"></div>
+    <div class="verdict" id="verdict"></div>
+    <button class="btn primary" id="nextRound">Question suivante</button>
+  </section>
+
+  <!-- GAME: FINAL -->
+  <section class="screen" id="final">
+    <h2>Verdict final</h2>
+    <div class="verdict" id="finalVerdict"></div>
+    <div class="box">
+      <table>
+        <thead><tr><th>Joueur</th><th class="num">Titres</th><th class="num">Votes reçus</th></tr></thead>
+        <tbody id="finalRows"></tbody>
+      </table>
+    </div>
+    <button class="btn primary" id="replay">Rejouer</button>
+    <button class="btn" data-go="menu">Menu principal</button>
+  </section>
+
+</div>
+
+<div id="footer">Une création macabre signée Thomas Lesprit... Jouez à vos risques et périls</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ---------- Données par défaut ---------- */
+  const MODES = {
+    chill: {
+      name: "Mode Chill / Soft",
+      desc: "Questions légères pour une soirée tranquille entre amis.",
+      q: [
+        "...susceptible de s'endormir pendant un film ?",
+        "...susceptible d'arriver en retard à son propre anniversaire ?",
+        "...gourmand ?",
+        "...bavard ?",
+        "...susceptible de gagner au loto et de tout dépenser en une semaine ?",
+        "...maladroit ?",
+        "...susceptible de survivre dans une forêt pendant une semaine ?",
+        "...susceptible de pleurer devant un dessin animé ?",
+        "...accro à son téléphone ?",
+        "...susceptible d'oublier un anniversaire ?",
+        "...bon cuisinier ?",
+        "...susceptible de se perdre avec un GPS ?",
+        "...susceptible de devenir célèbre ?",
+        "...flemmard ?",
+        "...susceptible de rire à un enterrement ?",
+        "...susceptible de manger le dernier morceau sans demander ?",
+        "...fan de séries à l'excès ?",
+        "...susceptible d'adopter 10 chats ?"
+      ]
+    },
+    cash: {
+      name: "Mode Cash / Amour",
+      desc: "Dossiers, crushs, questions gênantes. À ne pas jouer avec sa belle-famille.",
+      q: [
+        "...susceptible d'avoir un crush sur quelqu'un de cette pièce ?",
+        "...susceptible de stalker son ex sur les réseaux ?",
+        "...susceptible de ghoster quelqu'un après un premier rencard ?",
+        "...susceptible d'avoir un dossier compromettant sur son téléphone ?",
+        "...jaloux en couple ?",
+        "...susceptible de se marier trois fois ?",
+        "...susceptible d'avoir déjà menti sur son âge ?",
+        "...le meilleur au flirt ?",
+        "...susceptible de tomber amoureux en vacances ?",
+        "...susceptible de lire les messages de son/sa partenaire ?",
+        "...susceptible d'avoir déjà été surpris dans une situation gênante ?",
+        "...susceptible de tromper sans culpabilité ?",
+        "...susceptible de payer pour se faire pardonner ?",
+        "...susceptible de dépenser tout son salaire en un week-end ?",
+        "...susceptible de rester ami avec tous ses ex ?",
+        "...susceptible d'envoyer un message gênant à la mauvaise personne ?",
+        "...susceptible de faire un premier pas ?",
+        "...susceptible d'avoir un secret que personne ici ne connaît ?"
+      ]
+    },
+    absurde: {
+      name: "Mode Absurde & Gaffes",
+      desc: "Situations improbables, honte et chaos total.",
+      q: [
+        "...susceptible de se battre contre une oie ?",
+        "...susceptible de tomber dans une fontaine en public ?",
+        "...susceptible de survivre à une apocalypse zombie ?",
+        "...susceptible de trahir le groupe pour sauver sa peau face à un fantôme ?",
+        "...susceptible d'envoyer un « je t'aime » à son patron ?",
+        "...susceptible de dire « merci, toi aussi » au serveur qui dit « bon appétit » ?",
+        "...susceptible de se coincer dans une porte automatique ?",
+        "...susceptible de parler seul à voix haute dans la rue ?",
+        "...susceptible de vendre son âme au diable pour un kebab ?",
+        "...susceptible d'appeler sa prof « maman » ?",
+        "...susceptible de se faire expulser d'un cimetière ?",
+        "...susceptible de confondre un clown avec un meurtrier ?",
+        "...susceptible de mourir en premier dans un film d'horreur ?",
+        "...susceptible de crier au mauvais moment dans un cinéma ?",
+        "...susceptible de se faire poursuivre par un cygne ?",
+        "...susceptible de manger quelque chose tombé par terre ?",
+        "...susceptible de rater une porte vitrée ?",
+        "...susceptible de s'enfermer dehors en pyjama ?"
+      ]
+    }
+  };
+
+  const DEFAULT_LOG = [
+    { v: "v1.0.0", d: "30/10/2026", t: "Sortie du jeu : 3 modes, votes, résultats et panel admin." }
+  ];
+
+  /* ---------- Stockage ---------- */
+  const K = { log: "qelp_log", q: "qelp_questions", set: "qelp_settings", pl: "qelp_players", mode: "qelp_mode" };
+  const load = (k, def) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch { return def; } };
+  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+  const defaultQuestions = () => Object.fromEntries(Object.entries(MODES).map(([k, m]) => [k, [...m.q]]));
+  let changelog = load(K.log, DEFAULT_LOG);
+  let questions = load(K.q, null) || defaultQuestions();
+  for (const k in MODES) if (!Array.isArray(questions[k])) questions[k] = [...MODES[k].q];
+  let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true }, load(K.set, {}));
+  let names = load(K.pl, ["", ""]);
+  let mode = load(K.mode, "chill");
+  if (!MODES[mode]) mode = "chill";
+
+  /* ---------- Utilitaires ---------- */
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const vibrate = p => { if (settings.vib && navigator.vibrate) navigator.vibrate(p); };
+  let toastT;
+  function toast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1800);
+  }
+
+  function show(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    $("#" + id).classList.add("active");
+    window.scrollTo(0, 0);
+    if (id === "menu") renderMenu();
+    if (id === "players") renderPlayers();
+    if (id === "modes") renderModes();
+    if (id === "settings") renderSettings();
+    if (id === "admin") renderAdmin();
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-go]");
+    if (b) show(b.dataset.go);
+  });
+
+  /* ---------- Splash ---------- */
+  (function splash() {
+    let p = 0;
+    const bar = $("#splashBar"), pct = $("#splashPct");
+    const iv = setInterval(() => {
+      p = Math.min(100, p + Math.random() * 9 + 2);
+      bar.style.width = p + "%"; pct.textContent = Math.floor(p) + "%";
+      if (p >= 100) {
+        clearInterval(iv);
+        setTimeout(() => {
+          $("#splash").classList.add("out");
+          show("menu");
+          setTimeout(() => $("#splash").remove(), 1100);
+        }, 450);
+      }
+    }, 120);
+  })();
+
+  /* ---------- Menu & changelog ---------- */
+  function logHTML(list, deletable) {
+    if (!list.length) return '<p class="empty">Aucune mise à jour enregistrée.</p>';
+    return list.map((l, i) =>
+      `<div class="log-item"><b>${esc(l.v)}</b><small>${esc(l.d)}</small>` +
+      (deletable ? ` <button class="btn small ghost" data-dellog="${i}" style="float:right">Supprimer</button>` : "") +
+      `<p>${esc(l.t)}</p></div>`).join("");
+  }
+  function renderMenu() {
+    $("#menuLog").innerHTML = logHTML(changelog.slice(0, 3), false);
+    $("#curMode").textContent = MODES[mode].name;
+    document.body.classList.toggle("noFx", !settings.fx);
+  }
+
+  /* ---------- Modes ---------- */
+  function renderModes() {
+    $("#modeList").innerHTML = Object.entries(MODES).map(([k, m]) =>
+      `<div class="mode ${k === mode ? "sel" : ""}" data-mode="${k}"><h3>${esc(m.name)}</h3><p>${esc(m.desc)}</p>` +
+      `<p style="margin-top:4px">${questions[k].length} question(s)</p></div>`).join("");
+  }
+  $("#modeList").addEventListener("click", e => {
+    const m = e.target.closest("[data-mode]"); if (!m) return;
+    mode = m.dataset.mode; save(K.mode, mode); renderModes(); toast(MODES[mode].name + " sélectionné");
+  });
+
+  /* ---------- Paramètres ---------- */
+  function renderSettings() {
+    $("#setRounds").value = String(settings.rounds);
+    $("#setSelf").checked = settings.self;
+    $("#setFx").checked = settings.fx;
+    $("#setVib").checked = settings.vib;
+  }
+  const commitSettings = () => {
+    settings.rounds = +$("#setRounds").value;
+    settings.self = $("#setSelf").checked;
+    settings.fx = $("#setFx").checked;
+    settings.vib = $("#setVib").checked;
+    save(K.set, settings);
+    document.body.classList.toggle("noFx", !settings.fx);
+  };
+  ["#setRounds", "#setSelf", "#setFx", "#setVib"].forEach(s => $(s).addEventListener("change", commitSettings));
+  $("#resetPlayers").onclick = () => { names = ["", ""]; save(K.pl, names); toast("Prénoms effacés"); };
+  $("#resetAll").onclick = () => {
+    if (!confirm("Tout effacer (questions, mises à jour, réglages) ?")) return;
+    Object.values(K).forEach(k => { try { localStorage.removeItem(k); } catch {} });
+    changelog = [...DEFAULT_LOG]; questions = defaultQuestions();
+    settings = { rounds: 10, self: true, fx: true, vib: true }; names = ["", ""]; mode = "chill";
+    renderSettings(); document.body.classList.remove("noFx"); toast("Réinitialisé");
+  };
+
+  /* ---------- Saisie des joueurs ---------- */
+  function renderPlayers() {
+    $("#playerList").innerHTML = names.map((n, i) =>
+      `<div class="player-row"><span>${i + 1}.</span>` +
+      `<input type="text" maxlength="20" placeholder="Prénom du joueur ${i + 1}" value="${esc(n)}" data-pi="${i}">` +
+      (names.length > 2 ? `<button class="btn small ghost" data-pdel="${i}">✕</button>` : "") + `</div>`).join("");
+    $("#addPlayer").disabled = names.length >= 12;
+  }
+  $("#playerList").addEventListener("input", e => {
+    if (e.target.dataset.pi !== undefined) { names[+e.target.dataset.pi] = e.target.value; save(K.pl, names); }
+  });
+  $("#playerList").addEventListener("click", e => {
+    const d = e.target.closest("[data-pdel]"); if (!d) return;
+    names.splice(+d.dataset.pdel, 1); save(K.pl, names); renderPlayers();
+  });
+  $("#addPlayer").onclick = () => { if (names.length < 12) { names.push(""); save(K.pl, names); renderPlayers(); } };
+
+  /* ---------- Partie ---------- */
+  let G = null;
+  function startGame() {
+    const clean = names.map(n => n.trim());
+    if (clean.some(n => !n)) { toast("Tous les prénoms doivent être remplis"); $("#players").classList.add("shake"); setTimeout(() => $("#players").classList.remove("shake"), 400); return; }
+    const low = clean.map(n => n.toLowerCase());
+    if (new Set(low).size !== low.length) { toast("Deux joueurs ont le même prénom"); return; }
+    const pool = questions[mode];
+    if (!pool.length) { toast("Ce mode n'a aucune question (voir Panel Admin)"); return; }
+    const total = Math.min(settings.rounds, pool.length);
+    G = {
+      players: clean,
+      qs: shuffle(pool).slice(0, total),
+      round: 0, voter: 0,
+      votes: null,
+      titles: clean.map(() => 0),
+      received: clean.map(() => 0)
+    };
+    newRound();
+  }
+  $("#startGame").onclick = startGame;
+  $("#replay").onclick = startGame;
+  $("#quitGame").onclick = () => { if (confirm("Abandonner la partie ?")) show("menu"); };
+
+  function newRound() {
+    G.votes = G.players.map(() => 0);
+    G.voter = 0;
+    renderVote();
+    show("vote");
+  }
+  function renderVote() {
+    const r = G.round + 1, t = G.qs.length;
+    $("#hudRound").textContent = `Manche ${r}/${t}`;
+    $("#hudMode").textContent = MODES[mode].name;
+    $("#qTxt").textContent = G.qs[G.round].replace(/^\.\.\./, "...");
+    $("#voterName").textContent = G.players[G.voter];
+    $("#voteHint").textContent = "Passe le téléphone à " + G.players[G.voter] + " puis choisis en secret.";
+    $("#voteBtns").innerHTML = G.players.map((p, i) =>
+      (!settings.self && i === G.voter) ? "" : `<button class="btn" data-vote="${i}">${esc(p)}</button>`).join("");
+  }
+  $("#voteBtns").addEventListener("click", e => {
+    const b = e.target.closest("[data-vote]"); if (!b) return;
+    G.votes[+b.dataset.vote]++;
+    vibrate(40);
+    G.voter++;
+    if (G.voter >= G.players.length) showResult();
+    else renderVote();
+  });
+
+  function showResult() {
+    const n = G.players.length, max = Math.max(...G.votes);
+    const winners = G.votes.map((v, i) => v === max ? i : -1).filter(i => i >= 0);
+    G.votes.forEach((v, i) => G.received[i] += v);
+    winners.forEach(i => G.titles[i]++);
+
+    $("#hudRound2").textContent = `Manche ${G.round + 1}/${G.qs.length}`;
+    $("#hudMode2").textContent = MODES[mode].name;
+    $("#qTxt2").textContent = G.qs[G.round];
+    const order = G.players.map((p, i) => i).sort((a, b) => G.votes[b] - G.votes[a]);
+    $("#resBars").innerHTML = order.map(i =>
+      `<div class="res ${winners.includes(i) ? "win" : ""}"><div class="nm"><span>${esc(G.players[i])}</span><span>${G.votes[i]} vote(s)</span></div>` +
+      `<div class="track"><i data-w="${n ? (G.votes[i] / n * 100) : 0}"></i></div></div>`).join("");
+    const w = winners.map(i => esc(G.players[i]));
+    $("#verdict").innerHTML = winners.length === 1
+      ? `☠ ${w[0]} est condamné(e) ☠`
+      : `⚖ Égalité maudite : ${w.join(", ")} ⚖`;
+    $("#nextRound").textContent = G.round + 1 >= G.qs.length ? "Voir le verdict final" : "Question suivante";
+    show("result");
+    vibrate([80, 60, 120]);
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      document.querySelectorAll("#resBars i").forEach(el => el.style.width = el.dataset.w + "%")));
+  }
+  $("#nextRound").onclick = () => {
+    G.round++;
+    if (G.round >= G.qs.length) showFinal(); else newRound();
+  };
+
+  function showFinal() {
+    const order = G.players.map((p, i) => i).sort((a, b) => G.titles[b] - G.titles[a] || G.received[b] - G.received[a]);
+    const top = G.titles[order[0]];
+    const champs = order.filter(i => G.titles[i] === top).map(i => esc(G.players[i]));
+    $("#finalVerdict").innerHTML = `☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`;
+    $("#finalRows").innerHTML = order.map(i =>
+      `<tr><td>${esc(G.players[i])}</td><td class="num">${G.titles[i]}</td><td class="num">${G.received[i]}</td></tr>`).join("");
+    show("final");
+  }
+
+  /* ---------- Admin : changelog ---------- */
+  $("#logForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = $("#logVer").value.trim(), d = $("#logDate").value.trim(), t = $("#logDesc").value.trim();
+    if (!v || !d || !t) return;
+    changelog.unshift({ v, d, t }); save(K.log, changelog);
+    e.target.reset(); renderAdmin(); toast("Mise à jour ajoutée");
+  });
+  $("#adminLog").addEventListener("click", e => {
+    const b = e.target.closest("[data-dellog]"); if (!b) return;
+    changelog.splice(+b.dataset.dellog, 1); save(K.log, changelog); renderAdmin();
+  });
+
+  /* ---------- Admin : questions ---------- */
+  $("#qMode").innerHTML = Object.entries(MODES).map(([k, m]) => `<option value="${k}">${esc(m.name)}</option>`).join("");
+  $("#qMode").addEventListener("change", renderAdmin);
+  $("#qForm").addEventListener("submit", e => {
+    e.preventDefault();
+    let t = $("#qText").value.trim(); if (!t) return;
+    if (!t.startsWith("...")) t = "..." + t.replace(/^\.+\s*/, "");
+    const m = $("#qMode").value;
+    if (questions[m].includes(t)) { toast("Cette question existe déjà"); return; }
+    questions[m].push(t); save(K.q, questions);
+    $("#qText").value = ""; renderAdmin(); toast("Question ajoutée");
+  });
+  $("#qList").addEventListener("click", e => {
+    const b = e.target.closest("[data-delq]"); if (!b) return;
+    questions[$("#qMode").value].splice(+b.dataset.delq, 1); save(K.q, questions); renderAdmin();
+  });
+  $("#resetQ").onclick = () => {
+    const m = $("#qMode").value;
+    if (!confirm("Restaurer les questions d'origine de ce mode ? Vos ajouts seront perdus.")) return;
+    questions[m] = [...MODES[m].q]; save(K.q, questions); renderAdmin();
+  };
+  function renderAdmin() {
+    $("#adminLog").innerHTML = logHTML(changelog, true);
+    const m = $("#qMode").value, list = questions[m];
+    $("#qCount").textContent = list.length;
+    $("#qList").innerHTML = list.length
+      ? list.map((q, i) => `<div class="qrow"><span>${esc(q)}</span><button class="btn small ghost" data-delq="${i}">✕</button></div>`).join("")
+      : '<p class="empty">Aucune question dans ce mode.</p>';
+  }
+})();
+</script>
+</body>
+</html>
