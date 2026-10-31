@@ -241,6 +241,21 @@ body[data-screen="menu"] #calmBtn{display:block}
 #scareTxt{position:absolute;left:0;right:0;bottom:12%;padding:0 16px;text-align:center;color:#ff2a2a;font-weight:bold;font-size:clamp(1.8rem,9vw,4rem);letter-spacing:.08em;text-shadow:0 0 22px #f00,0 0 4px #000;opacity:0;pointer-events:none}
 #scare.on #scareTxt{animation:scareTxtA 1.3s linear forwards}
 @keyframes scareTxtA{0%,14%{opacity:0;transform:scale(.8)}22%{opacity:1;transform:scale(1)}90%{opacity:1;transform:scale(1.12)}100%{opacity:0}}
+/* ---------- Rendu 3D (WebGL) et verre dépoli ---------- */
+#gl{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:none;pointer-events:none}
+body.glon #gl{display:block}
+#app{position:relative;z-index:1}
+body.glon .box,body.glon .mode,body.glon .scard{background-color:rgba(12,12,12,.55);-webkit-backdrop-filter:blur(10px) saturate(1.25);backdrop-filter:blur(10px) saturate(1.25)}
+body.glon .box,body.glon .scard{box-shadow:0 8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06)}
+body.glon .btn{box-shadow:0 4px 18px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .15s,box-shadow .2s,background .2s}
+body.glon .btn:hover{transform:translateY(-2px)}
+body.glon .btn:active{transform:translateY(1px) scale(.99)}
+body.horror:not(.noFx) .question{transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .15s ease-out}
+.evbanner{display:flex;flex-direction:column;gap:2px;text-align:center;padding:10px 12px;margin:6px 0 4px;border:1px solid var(--blood-hi);background:rgba(176,0,24,.18);animation:evIn .6s ease-out}
+.evbanner b{color:var(--blood-hi);letter-spacing:.18em;font-size:1.05rem}
+.evbanner span{color:var(--text);font-size:.85rem}
+@keyframes evIn{0%{opacity:0;transform:scale(.9) rotate(-1deg)}60%{transform:scale(1.04)}100%{opacity:1;transform:none}}
+body.calm .evbanner{background:rgba(47,93,138,.2)}
 /* ---------- Footer ---------- */
 #footer{
   position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
@@ -322,6 +337,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
         <option value="15">15</option><option value="20">20</option>
         <option value="0">∞ Infini</option>
       </select>
+      <label for="setGfx">Qualité graphique</label>
+      <select id="setGfx"><option value="ultra">Ultra (brouillard 3D, reflets, relief)</option><option value="normal">Normale</option><option value="eco">Économie (sans rendu 3D)</option></select>
       <label for="setScare">Jumpscares (flash soudain et bruit fort possibles)</label>
       <select id="setScare"><option value="off">Désactivés</option><option value="rare">Rares</option><option value="normal">Normaux</option><option value="often">Fréquents</option></select>
       <button class="btn small ghost" id="scareTest" type="button" style="margin-top:6px">Tester un jumpscare</button>
@@ -402,7 +419,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   <!-- GAME: VOTE -->
   <section class="screen" id="vote">
     <div class="hud"><span id="hudRound"></span><span id="hudMode"></span></div>
-    <div class="question"><em>QUI EST LE PLUS...</em><span id="qTxt"></span></div>
+    <div id="evBox"></div>
+    <div class="question"><em id="qEm">QUI EST LE PLUS...</em><span id="qTxt"></span></div>
     <p class="voter">Vote de <b id="voterName"></b></p>
     <p class="sub" id="voteHint" style="margin-bottom:8px"></p>
     <div id="voteBtns"></div>
@@ -412,9 +430,11 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   <!-- GAME: ROUND RESULT -->
   <section class="screen" id="result">
     <div class="hud"><span id="hudRound2"></span><span id="hudMode2"></span></div>
-    <div class="question"><em>QUI EST LE PLUS...</em><span id="qTxt2"></span></div>
+    <div id="evBox2"></div>
+    <div class="question"><em id="qEm2">QUI EST LE PLUS...</em><span id="qTxt2"></span></div>
     <div id="resBars"></div>
     <div class="verdict" id="verdict"></div>
+    <div id="revealBox"></div>
     <div class="box" id="scoreBox"></div>
     <button class="btn primary" id="nextRound">Question suivante</button>
     <button class="btn ghost" id="endNow" hidden>Terminer la partie</button>
@@ -430,6 +450,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
         <tbody id="finalRows"></tbody>
       </table>
     </div>
+    <div id="finalAwards"></div>
     <button class="btn primary" id="replay">Rejouer</button>
     <button class="btn" data-go="menu">Menu principal</button>
   </section>
@@ -484,7 +505,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   <!-- MULTIJOUEUR : VOTE -->
   <section class="screen" id="mpVote">
     <div class="hud"><span id="mpHud"></span><span id="mpHudMode"></span></div>
-    <div class="question"><em>QUI EST LE PLUS...</em><span id="mpQ"></span></div>
+    <div id="mpEvBox"></div>
+    <div class="question"><em id="mpQEm">QUI EST LE PLUS...</em><span id="mpQ"></span></div>
     <p class="sub" id="mpVoteHint"></p>
     <div id="mpVoteBtns"></div>
     <button class="btn" id="mpForce">Forcer le résultat (hôte)</button>
@@ -542,9 +564,11 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   <!-- MULTIJOUEUR : RÉSULTAT -->
   <section class="screen" id="mpResult">
     <div class="hud"><span id="mpHud2"></span><span id="mpHudMode2"></span></div>
-    <div class="question"><em>QUI EST LE PLUS...</em><span id="mpQ2"></span></div>
+    <div id="mpEvBox2"></div>
+    <div class="question"><em id="mpQEm2">QUI EST LE PLUS...</em><span id="mpQ2"></span></div>
     <div id="mpBars"></div>
     <div class="verdict" id="mpVerdict"></div>
+    <div id="mpRevealBox"></div>
     <div class="box" id="mpScoreBox"></div>
     <button class="btn primary" id="mpNext">Question suivante</button>
     <button class="btn ghost" id="mpEndNow" hidden>Terminer la partie</button>
@@ -561,6 +585,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
         <tbody id="mpFinalRows"></tbody>
       </table>
     </div>
+    <div id="mpFinalAwards"></div>
     <button class="btn primary" id="mpReplay">Rejouer dans ce salon (hôte)</button>
     <button class="btn ghost mpLeaveBtn">Quitter le salon</button>
     <button class="btn ghost mpCloseBtn">Fermer le salon</button>
@@ -609,7 +634,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
 
 </div>
 
-<div id="scare"><canvas id="scareCv"></canvas><div id="scareTxt"></div></div><div id="fog"></div><div id="grain"></div><div class="blood" id="blood"></div><div id="heart"></div><div id="flash"></div><div id="whisper"></div><div id="scoreMsg"></div>
+<canvas id="gl"></canvas><div id="scare"><canvas id="scareCv"></canvas><div id="scareTxt"></div></div><div id="fog"></div><div id="grain"></div><div class="blood" id="blood"></div><div id="heart"></div><div id="flash"></div><div id="whisper"></div><div id="scoreMsg"></div>
 
 <div id="footer">Une création macabre signée Thomas Lesprit... Jouez à vos risques et périls</div>
 
@@ -723,7 +748,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   const seeded = load("qelp_packs", 0);
   PACKS.filter(pk => pk.v > seeded).forEach(pk => pk.q.forEach(q => { if (!questions[pk.mode].includes(q)) questions[pk.mode].push(q); }));
   if (seeded < Math.max(...PACKS.map(pk => pk.v))) { save("qelp_packs", Math.max(...PACKS.map(pk => pk.v))); save(K.q, questions); }
-  let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false, sound: true, scare: "rare" }, load(K.set, {}));
+  let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false, sound: true, scare: "rare", gfx: "ultra" }, load(K.set, {}));
   let names = load(K.pl, ["", ""]);
   let mode = load(K.mode, "chill");
   if (!MODES[mode]) mode = "chill";
@@ -938,9 +963,110 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     sTimer = setTimeout(() => { const nmx = myScareName(); doScare({ name: nmx, text: nmx && Math.random() < .6 ? fillName(pick(SCARE_MSGS), nmx) : "" }); scareTick(); }, (lv.min + Math.random() * (lv.max - lv.min)) * 1000);
   }
 
+  /* ---------- Événements maudits, distinctions ---------- */
+  const EVENTS = [
+    { id: "x2", h: "☠ SACRIFICE DOUBLE", c: "MANCHE DOUBLE", d: "Les titres de cette manche comptent double." },
+    { id: "less", h: "🪞 MIROIR", c: "MIROIR", d: "La question s'inverse : qui est le MOINS... ?" },
+    { id: "reveal", h: "👁 RÉVÉLATION", c: "RÉVÉLATION", d: "Les votes seront dévoilés à tous." }
+  ];
+  const evById = id => EVENTS.find(e => e.id === id) || null;
+  const evBanner = ev => ev ? `<div class="evbanner"><b>${T(ev.h, ev.c)}</b><span>${ev.d}</span></div>` : "";
+  const emLabel = ev => ev && ev.id === "less" ? "QUI EST LE MOINS..." : "QUI EST LE PLUS...";
+  const revealHTML = pairs => `<div class="box"><h3>Qui a voté pour qui</h3>` + pairs.map(([a, b]) => `<div class="qrow"><span>${a}</span><b>→ ${b}</b></div>`).join("") + `</div>`;
+  function awardsHTML(rows) {
+    if (rows.length < 2) return "";
+    const maxT = Math.max(...rows.map(r => r.t)), minV = Math.min(...rows.map(r => r.v)), maxV = Math.max(...rows.map(r => r.v));
+    const who = f => rows.filter(f).map(r => r.n).join(" & ");
+    const items = [[T("☠ L'âme la plus damnée", "Le plus de titres"), maxT > 0 ? who(r => r.t === maxT) : ""]];
+    if (minV !== maxV) items.push([T("😇 L'innocent", "Le moins désigné"), who(r => r.v === minV)], [T("🎯 Le bouc émissaire", "Le plus de votes reçus"), who(r => r.v === maxV)]);
+    return `<div class="box"><h3>Distinctions</h3>` + items.filter(i => i[1]).map(i => `<div class="qrow"><span>${i[0]}</span><b>${i[1]}</b></div>`).join("") + `</div>`;
+  }
+
+  /* ---------- Texte qui s'écrit (machine à écrire) ---------- */
+  const typers = new WeakMap();
+  function typeInto(el, text) {
+    if (el.dataset.full === text) return;
+    el.dataset.full = text; clearInterval(typers.get(el));
+    if (!settings.fx || settings.calm || settings.gfx === "eco" || calmMotion) { el.textContent = text; return; }
+    el.textContent = ""; let i = 0;
+    const iv = setInterval(() => { i += Math.random() < .25 ? 2 : 1; el.textContent = text.slice(0, i); if (i >= text.length) clearInterval(iv); }, 26);
+    typers.set(el, iv);
+  }
+
+  /* ---------- Rendu WebGL : brouillard volumétrique, rayons de lumière, lueur qui suit le doigt ---------- */
+  const GL = { gl: null, failed: false, raf: 0, m: [.5, .5], t0: performance.now(), on: false };
+  const GL_FS = `precision mediump float;
+uniform vec2 r; uniform float t; uniform vec2 m;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),f.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p=p*2.02+vec2(1.7,9.2);a*=.5;}return v;}
+void main(){
+  vec2 uv=gl_FragCoord.xy/r; vec2 p=uv*vec2(r.x/r.y,1.)*2.4;
+  float q=fbm(p+vec2(t*.035,t*.02));
+  float f=fbm(p*1.4+q*2.2+vec2(-t*.045,t*.018));
+  float fog=smoothstep(.3,.95,f);
+  vec3 col=vec3(.018,.0,.01);
+  col+=fog*vec3(.30,.035,.05)*(.35+.65*(1.-uv.y));
+  float shaft=pow(max(0.,1.-abs(uv.x-.55-.14*sin(t*.11))*2.4),3.)*smoothstep(.0,1.,uv.y)*.28;
+  col+=shaft*vec3(.55,.5,.45)*(.4+f);
+  float d=distance(uv*vec2(r.x/r.y,1.),m*vec2(r.x/r.y,1.));
+  col+=vec3(.55,.05,.06)*.11/(d*d*24.+.25);
+  float flick=.94+.06*sin(t*17.+sin(t*5.)*3.);
+  col*=flick;
+  vec2 c=uv-.5; col*=1.-dot(c,c)*1.1;
+  gl_FragColor=vec4(col,1.);
+}`;
+  function glInit() {
+    if (GL.gl) return true; if (GL.failed) return false;
+    try {
+      const cv = $("#gl"), gl = cv.getContext("webgl", { antialias: false, alpha: false, powerPreference: "high-performance" });
+      if (!gl) throw 0;
+      const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw 0; return o; };
+      const pr = gl.createProgram();
+      gl.attachShader(pr, sh(gl.VERTEX_SHADER, "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}"));
+      gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, GL_FS));
+      gl.linkProgram(pr); if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw 0;
+      gl.useProgram(pr);
+      const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(pr, "a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      GL.gl = gl; GL.u = { r: gl.getUniformLocation(pr, "r"), t: gl.getUniformLocation(pr, "t"), m: gl.getUniformLocation(pr, "m") };
+      return true;
+    } catch { GL.failed = true; return false; }
+  }
+  function glResize() {
+    const cv = $("#gl"), k = settings.gfx === "ultra" ? .8 : .45;
+    const w = Math.max(2, Math.floor(innerWidth * k)), h = Math.max(2, Math.floor(innerHeight * k));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; GL.gl.viewport(0, 0, w, h); }
+  }
+  function glLoop() {
+    if (!GL.on) return;
+    glResize();
+    const gl = GL.gl;
+    gl.uniform2f(GL.u.r, gl.canvas.width, gl.canvas.height);
+    gl.uniform1f(GL.u.t, (performance.now() - GL.t0) / 1000);
+    gl.uniform2f(GL.u.m, GL.m[0], GL.m[1]);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    GL.raf = requestAnimationFrame(glLoop);
+  }
+  function glUpdate() {
+    const want = settings.gfx !== "eco" && fxOn() && !calmMotion && !document.hidden && glInit();
+    document.body.classList.toggle("glon", !!want);
+    if (want && !GL.on) { GL.on = true; glLoop(); }
+    else if (!want && GL.on) { GL.on = false; cancelAnimationFrame(GL.raf); }
+  }
+  document.addEventListener("visibilitychange", glUpdate);
+  document.addEventListener("pointermove", e => {
+    GL.m = [e.clientX / innerWidth, 1 - e.clientY / innerHeight];
+    if (e.pointerType !== "touch") {
+      document.body.style.setProperty("--ry", ((e.clientX / innerWidth - .5) * 8).toFixed(2) + "deg");
+      document.body.style.setProperty("--rx", (-(e.clientY / innerHeight - .5) * 6).toFixed(2) + "deg");
+    }
+  });
+
   let hTimer = null;
   function horrorTick() {
-    sndUpdate(); scareTick();
+    sndUpdate(); scareTick(); glUpdate();
     clearTimeout(hTimer);
     if (!fxOn() || calmMotion) return;
     hTimer = setTimeout(() => {
@@ -1072,6 +1198,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#setCalm").checked = settings.calm;
     $("#setSnd").checked = settings.sound;
     $("#setScare").value = settings.scare;
+    $("#setGfx").value = settings.gfx;
   }
   const commitSettings = () => {
     settings.rounds = +$("#setRounds").value;
@@ -1082,15 +1209,16 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     settings.calm = $("#setCalm").checked;
     settings.sound = $("#setSnd").checked;
     settings.scare = $("#setScare").value;
+    settings.gfx = $("#setGfx").value;
     save(K.set, settings);
     applyFx();
   };
-  ["#setRounds", "#setSelf", "#setFx", "#setVib", "#setScores", "#setCalm", "#setSnd", "#setScare"].forEach(s => $(s).addEventListener("change", commitSettings));
+  ["#setRounds", "#setSelf", "#setFx", "#setVib", "#setScores", "#setCalm", "#setSnd", "#setScare", "#setGfx"].forEach(s => $(s).addEventListener("change", commitSettings));
   $("#resetPlayers").onclick = () => { names = ["", ""]; save(K.pl, names); toast("Prénoms effacés"); };
   $("#resetAll").onclick = e => twoStep(e.currentTarget, "Confirmer : tout effacer ?", () => {
     Object.values(K).forEach(k => { try { localStorage.removeItem(k); } catch {} });
     changelog = [...DEFAULT_LOG]; questions = defaultQuestions();
-    settings = { rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false, sound: true, scare: "rare" }; names = ["", ""]; mode = "chill";
+    settings = { rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false, sound: true, scare: "rare", gfx: "ultra" }; names = ["", ""]; mode = "chill";
     renderSettings(); applyFx(); toast("Réinitialisé");
   });
 
@@ -1138,7 +1266,8 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
 
   function newRound() {
     G.votes = G.players.map(() => 0);
-    G.voter = 0;
+    G.voter = 0; G.log = [];
+    G.ev = G.round > 0 && Math.random() < .28 ? pick(EVENTS) : null;
     renderVote();
     show("vote");
   }
@@ -1146,7 +1275,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const r = G.round + 1, t = G.inf ? "" : "/" + G.qs.length;
     $("#hudRound").textContent = `Manche ${r}${t}`;
     $("#hudMode").textContent = MODES[mode].name;
-    $("#qTxt").textContent = G.qs[G.round].replace(/^\.\.\./, "...");
+    $("#evBox").innerHTML = evBanner(G.ev);
+    $("#qEm").textContent = emLabel(G.ev);
+    typeInto($("#qTxt"), G.qs[G.round].replace(/^\.\.\./, "..."));
     $("#voterName").textContent = G.players[G.voter];
     $("#voteHint").textContent = "Passe le téléphone à " + G.players[G.voter] + " puis choisis en secret.";
     $("#voteBtns").innerHTML = G.players.map((p, i) =>
@@ -1154,7 +1285,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
   $("#voteBtns").addEventListener("click", e => {
     const b = e.target.closest("[data-vote]"); if (!b) return;
-    G.votes[+b.dataset.vote]++;
+    G.votes[+b.dataset.vote]++; G.log.push([G.voter, +b.dataset.vote]);
     vibrate(40);
     G.voter++;
     if (G.voter >= G.players.length) showResult();
@@ -1165,7 +1296,11 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const n = G.players.length, max = Math.max(...G.votes);
     const winners = G.votes.map((v, i) => v === max ? i : -1).filter(i => i >= 0);
     G.votes.forEach((v, i) => G.received[i] += v);
-    winners.forEach(i => G.titles[i]++);
+    const inc = G.ev && G.ev.id === "x2" ? 2 : 1;
+    winners.forEach(i => G.titles[i] += inc);
+    $("#evBox2").innerHTML = evBanner(G.ev);
+    $("#qEm2").textContent = emLabel(G.ev);
+    $("#revealBox").innerHTML = G.ev && G.ev.id === "reveal" ? revealHTML(G.log.map(([a, b]) => [esc(G.players[a]), esc(G.players[b])])) : "";
 
     $("#hudRound2").textContent = `Manche ${G.round + 1}${G.inf ? "" : "/" + G.qs.length}`;
     $("#hudMode2").textContent = MODES[mode].name;
@@ -1202,6 +1337,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#finalVerdict").innerHTML = T(`☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`, `${champs.join(" & ")} ${champs.length > 1 ? "sont en tête" : "est en tête"}`);
     $("#finalRows").innerHTML = order.map(i =>
       `<tr><td>${esc(G.players[i])}</td><td class="num">${G.titles[i]}</td><td class="num">${G.received[i]}</td></tr>`).join("");
+    $("#finalAwards").innerHTML = awardsHTML(G.players.map((n, i) => ({ n: esc(n), t: G.titles[i], v: G.received[i] })));
     save(K.last, G.players.map((n, i) => ({ name: n, score: G.titles[i] })));
     show("final");
     jolt("final");
@@ -1859,7 +1995,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const mine = vv.some(([id]) => id === myId);
     $("#mpHud").textContent = `Manche ${r.round + 1}${r.rounds ? "/" + r.qs.length : ""}`;
     $("#mpHudMode").textContent = (MODES[r.mode] || {}).name || "";
-    $("#mpQ").textContent = r.qs[r.round];
+    $("#mpEvBox").innerHTML = evBanner(evById(r.event));
+    $("#mpQEm").textContent = emLabel(evById(r.event));
+    typeInto($("#mpQ"), r.qs[r.round]);
     $("#mpVoteHint").textContent = mine ? `Vote enregistré. En attente des autres (${vv.length}/${ids.length})...` : "Choisis en secret.";
     $("#mpVoteBtns").innerHTML = (mine || !MP.players[myId]) ? "" :
       ids.map(id => `<button class="btn" data-mpv="${esc(id)}">${pname(id)}</button>`).join("");
@@ -1909,9 +2047,11 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       const max = Math.max(...Object.values(counts));
       const winners = Object.keys(counts).filter(id => counts[id] === max);
       const titles = { ...(r.titles || {}) }, received = { ...(r.received || {}) };
-      if (max > 0) winners.forEach(id => titles[id] = (titles[id] || 0) + 1);
+      const inc = r.event === "x2" ? 2 : 1;
+      if (max > 0) winners.forEach(id => titles[id] = (titles[id] || 0) + inc);
       Object.keys(counts).forEach(id => received[id] = (received[id] || 0) + counts[id]);
-      await DB.doc("rooms/" + m.code).set({ ...r, status: "result", result: { counts, winners }, titles, received });
+      const log = r.event === "reveal" ? Object.fromEntries(validVotes().map(([id, v]) => [id, v.target])) : null;
+      await DB.doc("rooms/" + m.code).set({ ...r, status: "result", result: { counts, winners, log }, titles, received });
     } catch (e) { mpErr(e); }
     m.busy = false;
   }
@@ -1925,6 +2065,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#mpBars").innerHTML = ids.sort((a, b) => res.counts[b] - res.counts[a]).map(id =>
       `<div class="res ${res.winners.includes(id) ? "win" : ""}"><div class="nm"><span>${pname(id)}</span><span>${res.counts[id]} vote(s)</span></div>` +
       `<div class="track"><i style="width:${res.counts[id] / n * 100}%"></i></div></div>`).join("");
+    $("#mpEvBox2").innerHTML = evBanner(evById(r.event));
+    $("#mpQEm2").textContent = emLabel(evById(r.event));
+    $("#mpRevealBox").innerHTML = r.event === "reveal" && res.log ? revealHTML(Object.entries(res.log).map(([a, b]) => [pname(a), pname(b)])) : "";
     const w = res.winners.map(pname);
     $("#mpVerdict").innerHTML = w.length === 1 ? T(`☠ ${w[0]} est condamné(e) ☠`, `${w[0]} est désigné(e)`) : T(`⚖ Égalité maudite : ${w.join(", ")} ⚖`, `Égalité : ${w.join(", ")}`);
     const last = r.rounds && r.round + 1 >= r.qs.length;
@@ -1944,7 +2087,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const r = m.room, more = !r.rounds && r.round + 1 >= r.qs.length, last = r.rounds && r.round + 1 >= r.qs.length;
     try {
       await DB.doc("rooms/" + m.code).set(last ? { ...r, status: "final" }
-        : { ...r, status: "vote", round: r.round + 1, result: null, qs: more ? [...r.qs, ...shuffle(questions[r.mode] || [])] : r.qs });
+        : { ...r, status: "vote", round: r.round + 1, result: null, event: Math.random() < .28 ? pick(EVENTS).id : null, qs: more ? [...r.qs, ...shuffle(questions[r.mode] || [])] : r.qs });
     } catch (e) { mpErr(e); }
   };
   $("#mpEndNow").onclick = e => twoStep(e.currentTarget, "Confirmer la fin ?", async () => {
@@ -1960,6 +2103,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#mpFinalVerdict").innerHTML = T(`☠ ${champs.join(" & ")} ${champs.length > 1 ? "sont les âmes les plus damnées" : "est l'âme la plus damnée"} ☠`, `${champs.join(" & ")} ${champs.length > 1 ? "sont en tête" : "est en tête"}`);
     $("#mpFinalRows").innerHTML = order.map(id => `<tr><td>${pname(id)}</td><td class="num">${t[id] || 0}</td><td class="num">${rc[id] || 0}</td></tr>`).join("");
     $("#mpReplay").hidden = !MP.host;
+    $("#mpFinalAwards").innerHTML = awardsHTML(order.map(id => ({ n: pname(id), t: t[id] || 0, v: rc[id] || 0 })));
     save(K.last, order.map(id => ({ name: (MP.players[id] || {}).name || "?", score: t[id] || 0 })));
     showIf("mpFinal");
   }
