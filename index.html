@@ -325,8 +325,6 @@ body[data-screen="menu"] #menuTools{display:flex}
 #splashGhost{z-index:1;opacity:0;mix-blend-mode:screen;filter:blur(2px) contrast(1.2);transition:opacity .9s ease}
 #splashFx{z-index:4}
 #splash .cut{position:absolute;inset:0;background:#000;z-index:7;opacity:0;pointer-events:none}
-#skipHint{position:absolute;left:0;right:0;bottom:64px;text-align:center;z-index:8;color:var(--dim);font-size:.72rem;letter-spacing:.2em;opacity:0;transition:opacity .8s}
-#skipHint.on{opacity:.7}
 body.noFx #splashGhost,body.noFx #splashFx,body.noFx #splash .cut{display:none}
 /* ---------- Finitions : lumière qui suit le doigt, ondes, coupures, sang, poussières ---------- */
 .card,.btn,.box{position:relative}
@@ -344,6 +342,17 @@ body.horror:not(.noFx) .verdict,body.horror:not(.noFx) h2,#splash h1{font-family
 #splash h1{font-size:clamp(1.8rem,8vw,3rem);text-align:center;line-height:1.05}
 body.horror:not(.noFx) .verdict{font-size:clamp(1.5rem,6vw,2.2rem)}
 body.horror:not(.noFx) .question span,body.horror:not(.noFx) .verdict{text-shadow:1px 0 rgba(255,0,60,.5),-1px 0 rgba(0,220,255,.3)}
+#gate{position:fixed;inset:0;z-index:130;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;cursor:pointer;
+  background:radial-gradient(ellipse at 50% 40%,#1a0306 0%,#000 70%);transition:opacity .7s}
+#gate[hidden]{display:none}
+#gate.out{opacity:0;pointer-events:none}
+#gate .gh{font-size:3.4rem;filter:drop-shadow(0 0 18px #b00018);animation:eyeBeat 1.6s ease-in-out infinite}
+#gate h2{color:var(--blood-hi);letter-spacing:.2em;text-shadow:0 0 14px var(--blood);margin:0}
+#gate p{color:var(--text);letter-spacing:.25em;animation:recBlink 1.6s steps(1) infinite}
+#gate small{color:var(--dim);font-size:.75rem}
+body[data-screen="menu"] .mhead h1.title{animation:shine 7s linear infinite,tglitch 9s steps(1) infinite}
+@keyframes tglitch{0%,93%,100%{transform:none}94%{transform:translateX(-3px) skewX(-4deg)}96%{transform:translateX(3px)}98%{transform:translateX(-1px)}}
+@media (prefers-reduced-motion:reduce){body[data-screen="menu"] .mhead h1.title{animation:none}}
 /* ---------- Footer ---------- */
 #footer{
   position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
@@ -361,6 +370,12 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
 <body>
 
 <!-- Splash -->
+<div id="gate" hidden>
+  <div class="gh">☠</div>
+  <h2>QUI EST LE PLUS...</h2>
+  <p>Appuie pour entrer</p>
+  <small>🔊 Monte le son pour une expérience complète</small>
+</div>
 <div id="splash">
   <div class="blood" id="bloodS"></div>
   <div class="rec"><span class="dot"></span> REC <b id="recTime">00:00:00</b></div>
@@ -373,7 +388,6 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   <div id="splashPct">0%</div>
   <div id="splashWhisper"></div>
   <div class="roll"></div><div class="scan"></div><div class="cut"></div>
-  <div id="skipHint">Touche pour passer</div>
 </div>
 <div id="menuTools">
   <button id="fxBtn" type="button" aria-pressed="true" title="Effets d'horreur"></button>
@@ -1266,9 +1280,137 @@ void main(){
   }
   document.addEventListener("visibilitychange", moteUpdate);
 
+  /* ---------- Bande-son du chargement : synthèse réaliste (réverbération, souffle, pas, murmures) ---------- */
+  const SPA = {
+    bus: null, rev: null, wind: null, started: false,
+    ok() { return !!(SND.ctx && settings.sound && !settings.calm); },
+    init() {
+      const c = SND.ctx; if (!c || this.bus) return !!this.bus;
+      this.bus = c.createGain(); this.bus.gain.value = 0; this.bus.connect(c.destination);
+      const len = Math.floor(c.sampleRate * 2.6), ir = c.createBuffer(2, len, c.sampleRate);
+      for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.8); }
+      this.rev = c.createConvolver(); this.rev.buffer = ir;
+      const wet = c.createGain(); wet.gain.value = .55; this.rev.connect(wet); wet.connect(this.bus);
+      return true;
+    },
+    out(node, wet = .35, pan = 0) {
+      const c = SND.ctx; let n = node;
+      if (c.createStereoPanner && pan) { const p = c.createStereoPanner(); p.pan.value = pan; node.connect(p); n = p; }
+      n.connect(this.bus);
+      const send = c.createGain(); send.gain.value = wet; n.connect(send); send.connect(this.rev);
+    },
+    env(g, t, a, peak, d) { g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(.0002, peak), t + a); g.gain.exponentialRampToValueAtTime(.0001, t + a + d); },
+    level(v) { if (this.ok() && this.bus) this.bus.gain.setTargetAtTime(v, SND.ctx.currentTime, .3); },
+    start() {
+      if (!this.ok() || !this.init() || this.started) return; this.started = true;
+      const c = SND.ctx;
+      // vent : bruit brun filtré dont la fréquence respire
+      const n = c.createBufferSource(); n.buffer = noiseBuf(4); n.loop = true;
+      const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 320; lp.Q.value = 1.2;
+      const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = .09; lg.gain.value = 180; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+      const wg = c.createGain(); wg.gain.value = .28; n.connect(lp); lp.connect(wg); this.out(wg, .5); n.start();
+      // grondement très grave
+      const o = c.createOscillator(); o.type = "sine"; o.frequency.value = 38; const og = c.createGain(); og.gain.value = .22; o.connect(og); this.out(og, .2); o.start();
+      this.nodes = [n, o, lfo];
+      this.bus.gain.setTargetAtTime(.35, c.currentTime, .6);
+    },
+    heart(v = 1) {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime;
+      [[0, 1], [.19, .72]].forEach(([dt, k]) => {
+        const o = c.createOscillator(), g = c.createGain(); o.type = "sine";
+        o.frequency.setValueAtTime(78, t + dt); o.frequency.exponentialRampToValueAtTime(34, t + dt + .16);
+        this.env(g, t + dt, .012, .9 * v * k, .22); o.connect(g); this.out(g, .25); o.start(t + dt); o.stop(t + dt + .3);
+        const cl = c.createBufferSource(); cl.buffer = noiseBuf(.05); const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 220; const cg = c.createGain();
+        this.env(cg, t + dt, .004, .25 * v * k, .05); cl.connect(f); f.connect(cg); this.out(cg, .15); cl.start(t + dt);
+      });
+    },
+    breath(v = .5) {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime, pan = (Math.random() - .5) * 1.4;
+      [[0, 1.1, 700], [1.5, 1.4, 520]].forEach(([dt, dur, fq]) => {
+        const n = c.createBufferSource(); n.buffer = noiseBuf(dur + .2);
+        const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.setValueAtTime(fq, t + dt); bp.frequency.linearRampToValueAtTime(fq * 1.6, t + dt + dur * .5); bp.Q.value = .9;
+        const g = c.createGain(); this.env(g, t + dt, dur * .45, .22 * v, dur * .55); n.connect(bp); bp.connect(g); this.out(g, .5, pan); n.start(t + dt);
+      });
+    },
+    whisper(v = .5) {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime, pan = (Math.random() - .5) * 1.8, dur = 1.5 + Math.random() * .8;
+      const n = c.createBufferSource(); n.buffer = noiseBuf(dur + .2); const sum = c.createGain();
+      [[650, 6], [1150, 8], [2600, 10]].forEach(([fq, q]) => { const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = q; bp.frequency.setValueAtTime(fq, t); bp.frequency.linearRampToValueAtTime(fq * (.8 + Math.random() * .5), t + dur); n.connect(bp); bp.connect(sum); });
+      const am = c.createOscillator(), ag = c.createGain(); am.frequency.value = 5 + Math.random() * 3; ag.gain.value = .5; const base = c.createGain(); base.gain.value = .5;
+      am.connect(ag); ag.connect(base.gain); sum.connect(base);
+      const g = c.createGain(); this.env(g, t, dur * .35, .5 * v, dur * .65); base.connect(g); this.out(g, .6, pan); n.start(t); am.start(t); am.stop(t + dur + .2);
+    },
+    step(v = .4, k = 0) {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime, pan = (k ? .3 : -.3);
+      const o = c.createOscillator(), g = c.createGain(); o.type = "sine"; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(42, t + .12);
+      this.env(g, t, .005, .55 * v, .18); o.connect(g); this.out(g, .45, pan); o.start(t); o.stop(t + .25);
+      const n = c.createBufferSource(); n.buffer = noiseBuf(.08); const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 380; const ng = c.createGain(); this.env(ng, t, .003, .18 * v, .07); n.connect(f); f.connect(ng); this.out(ng, .4, pan); n.start(t);
+    },
+    creak() {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime;
+      const o = c.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(88, t); o.frequency.linearRampToValueAtTime(150, t + 1.5);
+      const vib = c.createOscillator(), vg = c.createGain(); vib.frequency.value = 17; vg.gain.value = 9; vib.connect(vg); vg.connect(o.frequency);
+      const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.setValueAtTime(700, t); bp.frequency.linearRampToValueAtTime(1500, t + 1.5); bp.Q.value = 9;
+      const g = c.createGain(); this.env(g, t, .5, .22, 1.2); o.connect(bp); bp.connect(g); this.out(g, .55, .4); o.start(t); vib.start(t); o.stop(t + 1.9); vib.stop(t + 1.9);
+    },
+    slap() {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime;
+      const n = c.createBufferSource(); n.buffer = noiseBuf(.25); const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 900; const g = c.createGain(); this.env(g, t, .004, .7, .22); n.connect(lp); lp.connect(g); this.out(g, .35); n.start(t);
+      const o = c.createOscillator(), og = c.createGain(); o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + .2); this.env(og, t, .004, .8, .3); o.connect(og); this.out(og, .3); o.start(t); o.stop(t + .4);
+    },
+    swell() {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime;
+      const n = c.createBufferSource(); n.buffer = noiseBuf(2.2); const hp = c.createBiquadFilter(); hp.type = "bandpass"; hp.frequency.setValueAtTime(400, t); hp.frequency.exponentialRampToValueAtTime(3800, t + 1.8); hp.Q.value = 2;
+      const g = c.createGain(); this.env(g, t, 1.7, .35, .4); n.connect(hp); hp.connect(g); this.out(g, .6); n.start(t);
+    },
+    buzz() {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime;
+      [0, .09, .16, .3, .38].forEach((dt, i) => { if (i % 2) return; const o = c.createOscillator(), hp = c.createBiquadFilter(); o.type = "sawtooth"; o.frequency.value = 100; hp.type = "highpass"; hp.frequency.value = 400; const g = c.createGain(); this.env(g, t + dt, .005, .22, .07); o.connect(hp); hp.connect(g); this.out(g, .2); o.start(t + dt); o.stop(t + dt + .12); });
+      const n = c.createBufferSource(); n.buffer = noiseBuf(.06); const g2 = c.createGain(); this.env(g2, t + .42, .002, .5, .05); n.connect(g2); this.out(g2, .2); n.start(t + .42);
+    },
+    crack() {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime;
+      const n = c.createBufferSource(); n.buffer = noiseBuf(.3); const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 3200; const g = c.createGain(); this.env(g, t, .002, .6, .22); n.connect(hp); hp.connect(g); this.out(g, .5); n.start(t);
+      for (let i = 0; i < 7; i++) { const dt = .05 + Math.random() * .5, k = c.createBufferSource(); k.buffer = noiseBuf(.02); const f = c.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 5000; const kg = c.createGain(); this.env(kg, t + dt, .001, .3, .02); k.connect(f); f.connect(kg); this.out(kg, .3, Math.random() * 2 - 1); k.start(t + dt); }
+    },
+    duck() {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime;
+      this.bus.gain.cancelScheduledValues(t); this.bus.gain.setTargetAtTime(.05, t, .08);
+      const o = c.createOscillator(), g = c.createGain(); o.type = "sine"; o.frequency.value = 4200; this.env(g, t + .1, 1.2, .05, 1.6); o.connect(g); g.connect(c.destination); o.start(t + .1); o.stop(t + 3);
+    },
+    boom() {
+      if (!this.ok() || !this.bus) return; const c = SND.ctx, t = c.currentTime;
+      this.bus.gain.cancelScheduledValues(t); this.bus.gain.setTargetAtTime(1, t, .02);
+      const o = c.createOscillator(), g = c.createGain(); o.type = "sine"; o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(28, t + .9); this.env(g, t, .01, 1, 1.1); o.connect(g); this.out(g, .5); o.start(t); o.stop(t + 1.3);
+    },
+    end() {
+      if (!this.bus) return; const c = SND.ctx;
+      this.bus.gain.setTargetAtTime(0, c.currentTime + .3, .5);
+      setTimeout(() => { (this.nodes || []).forEach(n => { try { n.stop(); } catch {} }); }, 3000);
+    }
+  };
+
+  /* Ambiance douce du menu : vent lointain, très discret */
+  const MAMB = { on: false, g: null };
+  function menuAmb() {
+    if (!SND.ctx) return;
+    const want = document.body.dataset.screen === "menu" && settings.sound && !settings.calm && !document.hidden;
+    const c = SND.ctx;
+    if (!MAMB.g) {
+      if (!want) return;
+      MAMB.g = c.createGain(); MAMB.g.gain.value = 0; MAMB.g.connect(c.destination);
+      const n = c.createBufferSource(); n.buffer = noiseBuf(4); n.loop = true;
+      const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 260; lp.Q.value = 2;
+      const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = .07; lg.gain.value = 120; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+      const o = c.createOscillator(); o.type = "sine"; o.frequency.value = 55; const og = c.createGain(); og.gain.value = .35;
+      n.connect(lp); lp.connect(MAMB.g); o.connect(og); og.connect(MAMB.g); n.start(); o.start();
+    }
+    MAMB.g.gain.setTargetAtTime(want ? .06 : 0, c.currentTime, .8);
+  }
+
   let hTimer = null;
   function horrorTick() {
-    sndUpdate(); scareTick(); glUpdate(); moteUpdate();
+    sndUpdate(); scareTick(); glUpdate(); moteUpdate(); menuAmb();
     clearTimeout(hTimer);
     if (!fxOn() || calmMotion) return;
     hTimer = setTimeout(() => {
@@ -1368,7 +1510,7 @@ void main(){
   }
   (function splash() {
     const bar = $("#splashBar"), pct = $("#splashPct"), title = $("#splashTitle"), wh = $("#splashWhisper"), eye = $("#splashEye"), rec = $("#recTime"), sp = $("#splash");
-    const fxc = $("#splashFx"), ghost = $("#splashGhost"), cut = sp.querySelector(".cut"), hint = $("#skipHint");
+    const fxc = $("#splashFx"), ghost = $("#splashGhost"), cut = sp.querySelector(".cut");
     const base = title.textContent, glyphs = "█▓▒░#@%&?†✝", scary = settings.fx && !settings.calm && !calmMotion;
     const total = scary ? 10000 + Math.random() * 5000 : 2800; // 10 à 15 s avec les effets
     const W = fxc.width = Math.min(innerWidth, 900), H = fxc.height = Math.min(innerHeight, 1400), c = fxc.getContext("2d");
@@ -1402,11 +1544,10 @@ void main(){
     const fired = new Set(), once = (k, fn) => { if (!fired.has(k)) { fired.add(k); fn(); } };
     const flicker = () => { [0, 90, 160, 300, 380].forEach((d, i) => setTimeout(() => { cut.style.opacity = i % 2 === 0 ? .9 : 0; }, d)); };
     const ghostFace = () => { drawScare(ghost, "", "face"); ghost.style.opacity = .22; setTimeout(() => { ghost.style.opacity = 0; }, 1400); };
-    const t0 = performance.now(); let speed = 1, blink = 0, lastBlink = 0, fin = false, lastWh = 0, tSkip = t0;
-    sp.addEventListener("click", () => { if (performance.now() - t0 > 3500) speed = 9; });
+    let t0 = 0, blink = 0, lastBlink = 0, fin = false, lastWh = 0, lastStage = -1, nextBeat = 0, nextBreath = 0, nextStep = 0, stepN = 0;
     function frame(now) {
       if (fin) return;
-      const el = (now - t0) * speed, x = Math.min(1, el / total), p = prog(x) * 100, t = (now - t0) / 1000;
+      const el = now - t0, x = Math.min(1, el / total), p = prog(x) * 100, t = (now - t0) / 1000;
       GL.k = p / 100;
       bar.style.width = p + "%"; pct.textContent = Math.floor(p) + "%";
       rec.textContent = "00:" + String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(Math.floor(t % 60)).padStart(2, "0");
@@ -1415,25 +1556,31 @@ void main(){
       if (blink > 0 && now - lastBlink > 40) { blink--; lastBlink = now; }
       if (now - lastBlink > 30 || blink === 0) drawEye(eye, open, t);
       eye.style.animationDuration = (1.15 - p / 100 * .6).toFixed(2) + "s";
-      hint.classList.toggle("on", t > 5 && p < 95);
       if (scary) {
-        const st = STAGES.filter(s => p >= s[0]).pop()[1];
+        const stIdx = STAGES.filter(s => p >= s[0]).length - 1, st = STAGES[stIdx][1];
+        if (stIdx !== lastStage) { lastStage = stIdx; if (stIdx > 0) SPA.whisper(.3 + p / 160); }
+        SPA.level(.35 + p / 100 * .65);
+        if (p > 8 && now > nextBeat) { SPA.heart(.5 + p / 120); nextBeat = now + 1250 - p * 7; }
+        if (p > 18 && p < 64 && now > nextBreath) { SPA.breath(.35 + p / 180); nextBreath = now + 2600 + Math.random() * 900; }
+        if (p > 30 && p < 54 && now > nextStep) { SPA.step(.25 + (p - 30) / 40, stepN++ % 2); nextStep = now + (stepN % 2 ? 260 : 700); }
         if (now - lastWh > 450) { lastWh = now; wh.textContent = Math.random() < p / 220 ? corrupt(st, .35) : st; }
         if (Math.random() < .004 + p / 9000) { title.textContent = corrupt(base, .12 + p / 400); setTimeout(() => { title.textContent = base; }, 120); }
-        if (p > 10) once("h1", () => { EV.hand(); ghostFace(); });
-        if (p > 25) once("e1", () => EV.eyes(3));
-        if (p > 40) once("h2", () => { EV.hand(); ghostFace(); });
-        if (p > 55) once("f1", flicker);
-        if (p > 62) once("e2", () => EV.eyes(8));
-        if (p > 74) once("h3", () => { EV.hand(); EV.hand(); });
-        if (p > 80) once("c1", () => { EV.cracks(); ghostFace(); });
+        if (p > 10) once("h1", () => { EV.hand(); ghostFace(); SPA.slap(); SPA.swell(); });
+        if (p > 25) once("e1", () => { EV.eyes(3); SPA.whisper(.5); });
+        if (p > 38) once("door", () => SPA.creak());
+        if (p > 40) once("h2", () => { EV.hand(); ghostFace(); SPA.slap(); SPA.swell(); });
+        if (p > 55) once("f1", () => { flicker(); SPA.buzz(); });
+        if (p > 62) once("e2", () => { EV.eyes(8); SPA.whisper(.7); });
+        if (p > 74) once("h3", () => { EV.hand(); EV.hand(); SPA.slap(); setTimeout(() => SPA.slap(), 260); });
+        if (p > 80) once("c1", () => { EV.cracks(); ghostFace(); SPA.crack(); });
+        if (p > 87) once("duck", () => SPA.duck());
         if (p > 90) once("k1", () => {
           cut.style.opacity = 1; EV.eyes(5);
-          setTimeout(() => { cut.style.opacity = 0; if (settings.scare !== "off") doScare({ test: true, text: "" }); }, 750);
+          setTimeout(() => { cut.style.opacity = 0; SPA.boom(); if (settings.scare !== "off") doScare({ test: true, text: "" }); }, 750);
         });
       } else wh.textContent = "";
       if (x >= 1) {
-        fin = true; title.textContent = base; hint.classList.remove("on");
+        fin = true; title.textContent = base; SPA.end();
         setTimeout(() => {
           sp.classList.add("out");
           show("menu");
@@ -1443,7 +1590,13 @@ void main(){
       }
       requestAnimationFrame(frame);
     }
-    requestAnimationFrame(frame);
+    const begin = () => { t0 = performance.now(); SPA.start(); requestAnimationFrame(frame); };
+    const gate = $("#gate");
+    if (gate && settings.sound && !settings.calm) {
+      gate.hidden = false;
+      const go = () => { gate.removeEventListener("pointerdown", go); sndInit(); gate.classList.add("out"); setTimeout(() => gate.remove(), 700); begin(); };
+      gate.addEventListener("pointerdown", go);
+    } else { if (gate) gate.remove(); begin(); }
   })();
 
   /* ---------- Menu & changelog ---------- */
