@@ -841,9 +841,24 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   /* ---------- Jumpscares ---------- */
   const SCARE_LVL = { rare: { min: 90, max: 180, p: .08 }, normal: { min: 40, max: 90, p: .15 }, often: { min: 20, max: 45, p: .3 } };
   let lastScare = 0, sTimer = null, scareHide = null;
-  function drawScare(cv) {
+  /* Images perso : clé = prénom en minuscules sans accents, valeur = image (data: URI ou fichier à côté de index.html).
+     Exemple : { "ana": "data:image/jpeg;base64,...", "bob": "scares/bob.jpg" } */
+  const SCARE_IMAGES = Object.assign({
+  }, window.QELP_SCARE_IMAGES || {});
+  const normName = n => String(n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const scareImg = {};
+  Object.entries(SCARE_IMAGES).forEach(([k, src]) => { const im = new Image(); im.src = src; scareImg[normName(k)] = im; });
+  function drawScare(cv, name) {
     const w = cv.width = Math.min(innerWidth, 1000), h = cv.height = Math.min(innerHeight, 1000), c = cv.getContext("2d");
     c.fillStyle = "#000"; c.fillRect(0, 0, w, h);
+    const im = scareImg[normName(name)];
+    if (im && im.complete && im.naturalWidth) {
+      const r = Math.max(w / im.naturalWidth, h / im.naturalHeight), iw = im.naturalWidth * r, ih = im.naturalHeight * r;
+      c.drawImage(im, (w - iw) / 2, (h - ih) / 2, iw, ih);
+      const g = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .25, w / 2, h / 2, Math.max(w, h) * .75);
+      g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(60,0,6,.75)"); c.fillStyle = g; c.fillRect(0, 0, w, h);
+      return;
+    }
     const kind = pick(["face", "eyes", "mouth"]), cx = w / 2, cy = h / 2;
     const glow = (x, y, r, col) => { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col); g.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); };
     const teeth = (x0, x1, y, dir, size, n) => { c.fillStyle = "#cfc8bb"; for (let i = 0; i < n; i++) { const x = x0 + (x1 - x0) * (i + .5) / n, bw = (x1 - x0) / n * .45; c.beginPath(); c.moveTo(x - bw, y); c.lineTo(x + bw, y); c.lineTo(x + (Math.random() - .5) * bw, y + dir * size * (.7 + Math.random() * .5)); c.fill(); } };
@@ -894,7 +909,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       const a = document.activeElement; if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && !o.force) return;
     }
     const el = $("#scare");
-    drawScare($("#scareCv")); lastScare = Date.now();
+    drawScare($("#scareCv"), o.name); lastScare = Date.now();
     $("#scareTxt").textContent = o.text || "";
     el.classList.remove("on"); void el.offsetWidth; el.classList.add("on");
     sfxScare(); vibrate([200, 50, 300]);
@@ -916,7 +931,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     clearTimeout(sTimer);
     const lv = SCARE_LVL[settings.scare];
     if (!lv || !fxOn() || calmMotion || FLAGS.regie) return;
-    sTimer = setTimeout(() => { const nmx = myScareName(); doScare({ text: nmx && Math.random() < .6 ? fillName(pick(SCARE_MSGS), nmx) : "" }); scareTick(); }, (lv.min + Math.random() * (lv.max - lv.min)) * 1000);
+    sTimer = setTimeout(() => { const nmx = myScareName(); doScare({ name: nmx, text: nmx && Math.random() < .6 ? fillName(pick(SCARE_MSGS), nmx) : "" }); scareTick(); }, (lv.min + Math.random() * (lv.max - lv.min)) * 1000);
   }
 
   let hTimer = null;
@@ -2019,7 +2034,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const regie = !!(MP.regie && MP.regie.id === myId);
     FLAGS.regie = regie;
     const scr = a.scare;
-    if (scr && scr.id && MP.avScare !== scr.id) { if (MP.avScare !== undefined && !regie && (!scr.to || scr.to === "all" || scr.to === myId)) doScare({ force: true, text: fillName(scr.text, (MP.players[myId] || {}).name) }); MP.avScare = scr.id; }
+    if (scr && scr.id && MP.avScare !== scr.id) { if (MP.avScare !== undefined && !regie && (!scr.to || scr.to === "all" || scr.to === myId)) doScare({ force: true, name: (MP.players[myId] || {}).name, text: fillName(scr.text, (MP.players[myId] || {}).name) }); MP.avScare = scr.id; }
     else if (MP.avScare === undefined) MP.avScare = scr ? scr.id : 0;
     $("#avPanel").hidden = !regie;
     if (regie) refreshAvPanel(a);
@@ -2093,7 +2108,10 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     const i = $("#avScareTpl").value; if (i === "") return;
     scPresets.splice(+i, 1); save("qelp_scarepresets", scPresets); renderScPresets();
   };
-  $("#avScarePrev").onclick = () => doScare({ test: true, text: fillName($("#avScareTxt").value, "Toi") });
+  $("#avScarePrev").onclick = () => {
+    const to = $("#avScareTo").value, nm = to && to !== "all" && MP && MP.players[to] ? MP.players[to].name : "Toi";
+    doScare({ test: true, name: nm, text: fillName($("#avScareTxt").value, nm) });
+  };
   $("#avScare").onclick = () => regieCmd("scare", { to: $("#avScareTo").value || "all", text: $("#avScareTxt").value.trim() });
   $("#avReroll").onclick = () => regieCmd("reroll");
   $("#avEnd").onclick = e => twoStep(e.currentTarget, "Confirmer la fin ?", () => regieCmd("end"));
