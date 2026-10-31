@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Qui est le plus...</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Special+Elite&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Creepster&display=swap');
 :root{
   --bg:#050505; --panel:#0e0e0e; --panel2:#151515; --line:#2a0a0a;
   --blood:#b00018; --blood-hi:#e0102b; --text:#e8e2e2; --dim:#8a7f7f;
@@ -328,6 +328,22 @@ body[data-screen="menu"] #menuTools{display:flex}
 #skipHint{position:absolute;left:0;right:0;bottom:64px;text-align:center;z-index:8;color:var(--dim);font-size:.72rem;letter-spacing:.2em;opacity:0;transition:opacity .8s}
 #skipHint.on{opacity:.7}
 body.noFx #splashGhost,body.noFx #splashFx,body.noFx #splash .cut{display:none}
+/* ---------- Finitions : lumière qui suit le doigt, ondes, coupures, sang, poussières ---------- */
+.card,.btn,.box{position:relative}
+.card,.btn{overflow:hidden}
+.card::after,.btn::after,.box::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .25s;background:radial-gradient(190px circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,.11),transparent 65%)}
+.card:hover::after,.btn:hover::after,.box:hover::after{opacity:1}
+.rip{position:absolute;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(255,70,90,.5),transparent 65%);transform:scale(0);animation:ripA .6s ease-out forwards}
+@keyframes ripA{to{transform:scale(1);opacity:0}}
+body.calm .rip{background:radial-gradient(circle,rgba(120,180,240,.5),transparent 65%)}
+#app.cut{animation:cutA .26s steps(1)}
+@keyframes cutA{0%{transform:translateX(-7px);filter:drop-shadow(3px 0 rgba(255,0,60,.7)) drop-shadow(-3px 0 rgba(0,220,255,.45))}25%{transform:translateX(6px) skewX(2deg);clip-path:inset(28% 0 38% 0)}50%{transform:translateX(-3px);clip-path:none;filter:hue-rotate(35deg)}75%{transform:translateX(2px);filter:none}100%{transform:none;filter:none}}
+#splat{position:fixed;inset:0;width:100%;height:100%;z-index:41;pointer-events:none;opacity:0;transition:opacity 2.4s ease}
+#motes{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;display:none}
+body.horror:not(.noFx) .verdict,body.horror:not(.noFx) h2,#splash h1{font-family:"Creepster","Special Elite","Courier New",monospace;letter-spacing:.09em}
+#splash h1{font-size:clamp(1.8rem,8vw,3rem);text-align:center;line-height:1.05}
+body.horror:not(.noFx) .verdict{font-size:clamp(1.5rem,6vw,2.2rem)}
+body.horror:not(.noFx) .question span,body.horror:not(.noFx) .verdict{text-shadow:1px 0 rgba(255,0,60,.5),-1px 0 rgba(0,220,255,.3)}
 /* ---------- Footer ---------- */
 #footer{
   position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
@@ -729,7 +745,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
 
 </div>
 
-<canvas id="gl"></canvas><div id="scare"><canvas id="scareCv"></canvas><div id="scareTxt"></div></div><div id="fog"></div><div id="grain"></div><div class="blood" id="blood"></div><div id="heart"></div><div id="flash"></div><div id="whisper"></div><div id="scoreMsg"></div>
+<canvas id="gl"></canvas><canvas id="motes"></canvas><canvas id="splat"></canvas><div id="scare"><canvas id="scareCv"></canvas><div id="scareTxt"></div></div><div id="fog"></div><div id="grain"></div><div class="blood" id="blood"></div><div id="heart"></div><div id="flash"></div><div id="whisper"></div><div id="scoreMsg"></div>
 
 <div id="footer">Fabriqué par Thomas Lesprit... Peur garantie ou âme remboursée</div>
 
@@ -889,7 +905,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   function flash() { if (fxOn() && !calmMotion) retrigger($("#flash"), "go"); }
   function jolt(id) {
     if (!fxOn()) return;
-    flash(); sfxStinger();
+    flash(); sfxStinger(); splat(); GL.k = 1;
     const lv = SCARE_LVL[settings.scare];
     if (lv && !FLAGS.regie && Math.random() < lv.p) setTimeout(() => doScare(), 700);
     const el = $("#" + id); el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
@@ -1094,7 +1110,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
 
   /* ---------- Rendu WebGL : brouillard volumétrique, rayons de lumière, lueur qui suit le doigt ---------- */
-  const GL = { gl: null, failed: false, raf: 0, k: .45, m: [.5, .5], t0: performance.now(), on: false };
+  const GL = { gl: null, failed: false, raf: 0, k: .45, base: .45, m: [.5, .5], t0: performance.now(), on: false };
   const GL_FS = `precision mediump float;
 uniform vec2 r; uniform float t; uniform vec2 m; uniform float k;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
@@ -1159,6 +1175,7 @@ void main(){
     gl.uniform2f(GL.u.r, gl.canvas.width, gl.canvas.height);
     gl.uniform1f(GL.u.t, (performance.now() - GL.t0) / 1000);
     gl.uniform2f(GL.u.m, GL.m[0], GL.m[1]);
+    GL.k += (GL.base - GL.k) * .02;
     gl.uniform1f(GL.u.k, GL.k);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     GL.raf = requestAnimationFrame(glLoop);
@@ -1179,9 +1196,68 @@ void main(){
     }
   });
 
+  /* ---------- Finitions visuelles ---------- */
+  document.addEventListener("pointermove", e => {
+    const el = e.target.closest && e.target.closest(".card,.btn,.box"); if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", (e.clientX - r.left) + "px"); el.style.setProperty("--my", (e.clientY - r.top) + "px");
+  });
+  document.addEventListener("pointerdown", e => {
+    const el = e.target.closest && e.target.closest(".btn,.card"); if (!el || settings.gfx === "eco" || calmMotion) return;
+    const r = el.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2, sp = document.createElement("span");
+    sp.className = "rip"; sp.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+    el.appendChild(sp); setTimeout(() => sp.remove(), 650);
+  });
+  let splatT = null;
+  function splat() {
+    if (!fxOn() || settings.gfx === "eco" || calmMotion) return;
+    const cv = $("#splat"), w = cv.width = innerWidth, h = cv.height = innerHeight, c = cv.getContext("2d"), u = w / 400;
+    c.clearRect(0, 0, w, h);
+    const n = 2 + Math.floor(Math.random() * 2);
+    for (let b = 0; b < n; b++) {
+      const x = (Math.random() < .5 ? Math.random() * .22 : .78 + Math.random() * .22) * w, y = h * (.08 + Math.random() * .6), R = (20 + Math.random() * 34) * u;
+      const g = c.createRadialGradient(x - R * .2, y - R * .2, R * .1, x, y, R * 1.1); g.addColorStop(0, "#c8162b"); g.addColorStop(.7, "#7d0716"); g.addColorStop(1, "#3a0309");
+      c.fillStyle = g;
+      for (let i = 0; i < 16; i++) { const a = Math.random() * 7, dd = R * .65 * Math.random(); c.beginPath(); c.arc(x + Math.cos(a) * dd, y + Math.sin(a) * dd, R * (.22 + Math.random() * .35), 0, 7); c.fill(); }
+      c.lineCap = "round"; c.strokeStyle = "#7d0716";
+      for (let i = 0; i < 7; i++) { const sx = x + (Math.random() - .5) * R * 1.4, len = R * (.5 + Math.random() * 2.2); c.lineWidth = R * (.05 + Math.random() * .08); c.beginPath(); c.moveTo(sx, y + R * .3); c.lineTo(sx + (Math.random() - .5) * 8, y + R * .3 + len); c.stroke(); c.fillStyle = "#8e0a1a"; c.beginPath(); c.arc(sx, y + R * .3 + len, c.lineWidth * .9, 0, 7); c.fill(); }
+      c.fillStyle = "#a30e1f"; for (let i = 0; i < 14; i++) { const a = Math.random() * 7, dd = R * (1.1 + Math.random() * 1.4); c.beginPath(); c.arc(x + Math.cos(a) * dd, y + Math.sin(a) * dd, R * (.02 + Math.random() * .06), 0, 7); c.fill(); }
+      c.fillStyle = "rgba(255,255,255,.18)"; c.beginPath(); c.ellipse(x - R * .3, y - R * .35, R * .22, R * .1, -.6, 0, 7); c.fill();
+    }
+    cv.style.transition = "none"; cv.style.opacity = .6; void cv.offsetWidth; cv.style.transition = "";
+    clearTimeout(splatT); splatT = setTimeout(() => { cv.style.opacity = 0; }, 3600);
+  }
+  function countUp(root) {
+    if (!settings.fx || settings.calm || calmMotion || settings.gfx === "eco") return;
+    root.querySelectorAll("td.num").forEach(td => {
+      const n = +td.textContent; if (!isFinite(n) || n <= 0) return;
+      const t0 = performance.now(); td.textContent = "0";
+      const step = now => { const k = Math.min(1, (now - t0) / 700); td.textContent = Math.round(n * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+  }
+  const MOTES = { raf: 0, list: [] };
+  function moteLoop(now) {
+    const cv = $("#motes"), c = cv.getContext("2d"), rgb = settings.calm ? "120,180,240" : "224,70,90";
+    c.clearRect(0, 0, cv.width, cv.height);
+    MOTES.list.forEach(m => {
+      m.x += m.vx; m.y += m.vy; if (m.y < -10) { m.y = cv.height + 10; m.x = Math.random() * cv.width; } if (m.x < -10) m.x = cv.width + 10; if (m.x > cv.width + 10) m.x = -10;
+      const a = .16 + .14 * Math.sin(now / 1600 + m.a), g = c.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 5);
+      g.addColorStop(0, `rgba(${rgb},${a})`); g.addColorStop(1, `rgba(${rgb},0)`); c.fillStyle = g; c.beginPath(); c.arc(m.x, m.y, m.r * 5, 0, 7); c.fill();
+    });
+    MOTES.raf = requestAnimationFrame(moteLoop);
+  }
+  function moteUpdate() {
+    const cv = $("#motes"), on = document.body.dataset.screen === "menu" && settings.gfx !== "eco" && !calmMotion && !document.hidden;
+    cv.style.display = on ? "block" : "none";
+    if (on && !MOTES.raf) { cv.width = innerWidth; cv.height = innerHeight; MOTES.list = Array.from({ length: 46 }, () => ({ x: Math.random() * cv.width, y: Math.random() * cv.height, r: .5 + Math.random() * 1.9, vx: (Math.random() - .5) * .14, vy: -.06 - Math.random() * .2, a: Math.random() * 6.28 })); MOTES.raf = requestAnimationFrame(moteLoop); }
+    else if (!on && MOTES.raf) { cancelAnimationFrame(MOTES.raf); MOTES.raf = 0; }
+  }
+  document.addEventListener("visibilitychange", moteUpdate);
+
   let hTimer = null;
   function horrorTick() {
-    sndUpdate(); scareTick(); glUpdate();
+    sndUpdate(); scareTick(); glUpdate(); moteUpdate();
     clearTimeout(hTimer);
     if (!fxOn() || calmMotion) return;
     hTimer = setTimeout(() => {
@@ -1231,6 +1307,10 @@ void main(){
   }
 
   function show(id) {
+    if (settings.fx && !settings.calm && !calmMotion && HORROR.has(id) && !$("#" + id).classList.contains("active")) {
+      const ap = $("#app"); ap.classList.remove("cut"); void ap.offsetWidth; ap.classList.add("cut");
+    }
+    $("#splat").style.opacity = 0;
     document.body.dataset.screen = id;
     document.body.classList.toggle("horror", HORROR.has(id));
     horrorTick();
@@ -1515,6 +1595,7 @@ void main(){
     $("#scoreBox").innerHTML = scoreTable(G.players.map((pl, i) => ({ n: esc(pl), t: G.titles[i], v: G.received[i], w: winners.includes(i) })));
     show("result");
     jolt("result");
+    countUp($("#scoreBox"));
     vibrate([80, 60, 120]);
     requestAnimationFrame(() => requestAnimationFrame(() =>
       document.querySelectorAll("#resBars i").forEach(el => el.style.width = el.dataset.w + "%")));
@@ -1540,6 +1621,7 @@ void main(){
     save(K.last, G.players.map((n, i) => ({ name: n, score: G.titles[i] })));
     show("final");
     jolt("final");
+    countUp($("#finalRows"));
   }
 
   /* ---------- Tableau des scores (tablette) ---------- */
