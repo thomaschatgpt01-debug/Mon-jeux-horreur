@@ -233,6 +233,11 @@ body[data-screen="menu"] #calmBtn{display:block}
 .aovbtn.trap:hover{background:var(--blood)}
 #avPanel{border-top:2px dashed var(--blood);margin-top:20px;padding-top:6px}
 #avPanel .btn{margin:6px 0}
+#scare{position:fixed;inset:0;z-index:95;display:none;background:#000;cursor:pointer}
+#scare.on{display:block;animation:scareBg 1.3s linear forwards}
+#scare canvas{width:100%;height:100%;display:block;filter:contrast(1.3) saturate(1.2);animation:scareZoom 1.3s ease-in forwards}
+@keyframes scareBg{0%{background:#fff}5%{background:#000}85%{opacity:1}100%{opacity:0}}
+@keyframes scareZoom{0%{transform:scale(.7)}8%{transform:scale(1)}100%{transform:scale(1.35) translate(1%,-1%)}}
 /* ---------- Footer ---------- */
 #footer{
   position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
@@ -314,6 +319,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
         <option value="15">15</option><option value="20">20</option>
         <option value="0">∞ Infini</option>
       </select>
+      <label for="setScare">Jumpscares (flash soudain et bruit fort possibles)</label>
+      <select id="setScare"><option value="off">Désactivés</option><option value="rare">Rares</option><option value="normal">Normaux</option><option value="often">Fréquents</option></select>
+      <button class="btn small ghost" id="scareTest" type="button" style="margin-top:6px">Tester un jumpscare</button>
       <div class="switch"><span>Autoriser de voter pour soi-même</span><input type="checkbox" id="setSelf"></div>
       <div class="switch"><span>Effets d'horreur (chargement et parties)</span><input type="checkbox" id="setFx"></div>
       <div class="switch"><span>Sons d'ambiance (battement de cœur, murmures)</span><input type="checkbox" id="setSnd"></div>
@@ -509,6 +517,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
         <label for="avMsg">Message à tous les écrans</label>
         <input type="text" id="avMsg" maxlength="120" placeholder="Il est derrière vous...">
         <button class="btn" id="avSend">Afficher à tous</button>
+        <button class="btn" id="avScare">💀 Jumpscare sur tous les écrans</button>
       </div>
       <button class="btn" id="avReroll">Tirer une autre question</button>
       <button class="btn ghost" id="avEnd">Terminer la partie (retour au salon)</button>
@@ -587,7 +596,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
 
 </div>
 
-<div id="fog"></div><div id="grain"></div><div class="blood" id="blood"></div><div id="heart"></div><div id="flash"></div><div id="whisper"></div><div id="scoreMsg"></div>
+<div id="scare"><canvas id="scareCv"></canvas></div><div id="fog"></div><div id="grain"></div><div class="blood" id="blood"></div><div id="heart"></div><div id="flash"></div><div id="whisper"></div><div id="scoreMsg"></div>
 
 <div id="footer">Une création macabre signée Thomas Lesprit... Jouez à vos risques et périls</div>
 
@@ -701,7 +710,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   const seeded = load("qelp_packs", 0);
   PACKS.filter(pk => pk.v > seeded).forEach(pk => pk.q.forEach(q => { if (!questions[pk.mode].includes(q)) questions[pk.mode].push(q); }));
   if (seeded < Math.max(...PACKS.map(pk => pk.v))) { save("qelp_packs", Math.max(...PACKS.map(pk => pk.v))); save(K.q, questions); }
-  let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false, sound: true }, load(K.set, {}));
+  let settings = Object.assign({ rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false, sound: true, scare: "rare" }, load(K.set, {}));
   let names = load(K.pl, ["", ""]);
   let mode = load(K.mode, "chill");
   if (!MODES[mode]) mode = "chill";
@@ -736,12 +745,15 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   buildDrips($("#blood"), 16);
   buildDrips($("#bloodS"), 22);
   const retrigger = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+  const FLAGS = { regie: false };
   const fxOn = () => settings.fx && !settings.calm && document.body.classList.contains("horror");
   const T = (horror, calm) => settings.calm ? calm : horror;
   function flash() { if (fxOn() && !calmMotion) retrigger($("#flash"), "go"); }
   function jolt(id) {
     if (!fxOn()) return;
     flash(); sfxStinger();
+    const lv = SCARE_LVL[settings.scare];
+    if (lv && !FLAGS.regie && Math.random() < lv.p) setTimeout(() => doScare(), 700);
     const el = $("#" + id); el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
     vibrate([60, 40, 90]);
   }
@@ -813,9 +825,79 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     if (e.target.closest && e.target.closest(".btn")) sfxTick();
   });
 
+  /* ---------- Jumpscares ---------- */
+  const SCARE_LVL = { rare: { min: 90, max: 180, p: .08 }, normal: { min: 40, max: 90, p: .15 }, often: { min: 20, max: 45, p: .3 } };
+  let lastScare = 0, sTimer = null, scareHide = null;
+  function drawScare(cv) {
+    const w = cv.width = Math.min(innerWidth, 1000), h = cv.height = Math.min(innerHeight, 1000), c = cv.getContext("2d");
+    c.fillStyle = "#000"; c.fillRect(0, 0, w, h);
+    const kind = pick(["face", "eyes", "mouth"]), cx = w / 2, cy = h / 2;
+    const glow = (x, y, r, col) => { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col); g.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); };
+    const teeth = (x0, x1, y, dir, size, n) => { c.fillStyle = "#cfc8bb"; for (let i = 0; i < n; i++) { const x = x0 + (x1 - x0) * (i + .5) / n, bw = (x1 - x0) / n * .45; c.beginPath(); c.moveTo(x - bw, y); c.lineTo(x + bw, y); c.lineTo(x + (Math.random() - .5) * bw, y + dir * size * (.7 + Math.random() * .5)); c.fill(); } };
+    if (kind === "face") {
+      const fw = Math.min(w * .78, h * .55), fh = fw * 1.35;
+      glow(cx, cy, fw * 1.2, "rgba(130,0,12,.6)");
+      const g = c.createRadialGradient(cx, cy - fh * .1, fw * .1, cx, cy, fh * .62);
+      g.addColorStop(0, "#d9d4cc"); g.addColorStop(.7, "#8d867c"); g.addColorStop(1, "#1f1b18");
+      c.fillStyle = g; c.beginPath(); c.ellipse(cx, cy, fw / 2, fh / 2, 0, 0, 7); c.fill();
+      for (const d of [-1, 1]) {
+        const ex = cx + d * fw * .19, ey = cy - fh * .1;
+        c.fillStyle = "#050000"; c.beginPath(); c.ellipse(ex, ey, fw * .12, fh * .09, d * .18, 0, 7); c.fill();
+        glow(ex, ey, fw * .06, "#ff3b3b");
+        c.strokeStyle = "#7a0010"; c.lineWidth = fw * .014; c.beginPath(); c.moveTo(ex, ey + fh * .08); c.lineTo(ex + d * fw * .02, ey + fh * .32); c.stroke();
+      }
+      const my = cy + fh * .24, mw = fw * .58;
+      c.fillStyle = "#000"; c.beginPath(); c.moveTo(cx - mw / 2, my);
+      for (let i = 0; i <= 12; i++) c.lineTo(cx - mw / 2 + mw * i / 12, my + (i % 2 ? fh * .05 : -fh * .03));
+      for (let i = 12; i >= 0; i--) c.lineTo(cx - mw / 2 + mw * i / 12, my + fh * .18 + (i % 2 ? -fh * .04 : 0));
+      c.fill();
+      teeth(cx - mw / 2, cx + mw / 2, my, 1, fh * .06, 10); teeth(cx - mw / 2, cx + mw / 2, my + fh * .17, -1, fh * .05, 10);
+    } else if (kind === "eyes") {
+      for (let k = 0; k < 9; k++) { const s = (3 + Math.random() * 12) * (h / 800), x = Math.random() * w, y = Math.random() * h; for (const d of [-1, 1]) glow(x + d * s * 3, y, s * 1.6, "#ff2a2a"); }
+      for (const d of [-1, 1]) { const x = cx + d * w * .13, y = cy; glow(x, y, w * .16, "rgba(255,40,40,.55)"); c.fillStyle = "#ff3030"; c.beginPath(); c.ellipse(x, y, w * .075, h * .03, d * -.35, 0, 7); c.fill(); c.fillStyle = "#000"; c.beginPath(); c.ellipse(x, y, w * .012, h * .028, 0, 0, 7); c.fill(); }
+    } else {
+      const mw = w * .9, mh = h * .5;
+      glow(cx, cy, w, "rgba(120,0,10,.7)");
+      const mg = c.createRadialGradient(cx, cy, mw * .05, cx, cy, mw / 2); mg.addColorStop(0, "#5a0009"); mg.addColorStop(1, "#0b0001"); c.fillStyle = mg; c.beginPath(); c.ellipse(cx, cy, mw / 2, mh / 2, 0, 0, 7); c.fill();
+      glow(cx, cy + mh * .15, mw * .35, "rgba(200,20,30,.6)");
+      teeth(cx - mw * .4, cx + mw * .4, cy - mh * .32, 1, mh * .22, 11); teeth(cx - mw * .4, cx + mw * .4, cy + mh * .32, -1, mh * .2, 11);
+    }
+    c.strokeStyle = "rgba(255,255,255,.12)";
+    for (let i = 0; i < 14; i++) { c.beginPath(); const x = Math.random() * w; c.moveTo(x, 0); c.lineTo(x + (Math.random() - .5) * 60, h); c.stroke(); }
+  }
+  function sfxScare() {
+    if (!settings.sound || !SND.ctx) return;
+    const c = SND.ctx, t = c.currentTime;
+    if (c.state === "suspended") c.resume();
+    const g = c.createGain(); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.5, t + .03); g.gain.exponentialRampToValueAtTime(.001, t + 1.2); g.connect(c.destination);
+    [220, 233, 311].forEach(f => { const o = c.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 2.6, t + .9); o.connect(g); o.start(t); o.stop(t + 1.25); });
+    const n = c.createBufferSource(); n.buffer = noiseBuf(1.2); const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 900; n.connect(hp); hp.connect(g); n.start(t);
+  }
+  function doScare(o = {}) {
+    if (settings.scare === "off" && !o.test) return;
+    if (!o.test) {
+      if (!fxOn() || calmMotion || FLAGS.regie) return;
+      if (!o.force && Date.now() - lastScare < 25000) return;
+      const a = document.activeElement; if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && !o.force) return;
+    }
+    const el = $("#scare");
+    drawScare($("#scareCv")); lastScare = Date.now();
+    el.classList.remove("on"); void el.offsetWidth; el.classList.add("on");
+    sfxScare(); vibrate([200, 50, 300]);
+    clearTimeout(scareHide); scareHide = setTimeout(() => el.classList.remove("on"), 1300);
+  }
+  $("#scare").addEventListener("click", () => { $("#scare").classList.remove("on"); clearTimeout(scareHide); });
+  $("#scareTest").onclick = () => { if (!SND.ctx && settings.sound) sndInit(); doScare({ test: true }); };
+  function scareTick() {
+    clearTimeout(sTimer);
+    const lv = SCARE_LVL[settings.scare];
+    if (!lv || !fxOn() || calmMotion || FLAGS.regie) return;
+    sTimer = setTimeout(() => { doScare(); scareTick(); }, (lv.min + Math.random() * (lv.max - lv.min)) * 1000);
+  }
+
   let hTimer = null;
   function horrorTick() {
-    sndUpdate();
+    sndUpdate(); scareTick();
     clearTimeout(hTimer);
     if (!fxOn() || calmMotion) return;
     hTimer = setTimeout(() => {
@@ -946,6 +1028,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     $("#setScores").checked = settings.scores;
     $("#setCalm").checked = settings.calm;
     $("#setSnd").checked = settings.sound;
+    $("#setScare").value = settings.scare;
   }
   const commitSettings = () => {
     settings.rounds = +$("#setRounds").value;
@@ -955,15 +1038,16 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     settings.scores = $("#setScores").checked;
     settings.calm = $("#setCalm").checked;
     settings.sound = $("#setSnd").checked;
+    settings.scare = $("#setScare").value;
     save(K.set, settings);
     applyFx();
   };
-  ["#setRounds", "#setSelf", "#setFx", "#setVib", "#setScores", "#setCalm", "#setSnd"].forEach(s => $(s).addEventListener("change", commitSettings));
+  ["#setRounds", "#setSelf", "#setFx", "#setVib", "#setScores", "#setCalm", "#setSnd", "#setScare"].forEach(s => $(s).addEventListener("change", commitSettings));
   $("#resetPlayers").onclick = () => { names = ["", ""]; save(K.pl, names); toast("Prénoms effacés"); };
   $("#resetAll").onclick = e => twoStep(e.currentTarget, "Confirmer : tout effacer ?", () => {
     Object.values(K).forEach(k => { try { localStorage.removeItem(k); } catch {} });
     changelog = [...DEFAULT_LOG]; questions = defaultQuestions();
-    settings = { rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false, sound: true }; names = ["", ""]; mode = "chill";
+    settings = { rounds: 10, self: true, fx: true, vib: true, scores: true, calm: false, sound: true, scare: "rare" }; names = ["", ""]; mode = "chill";
     renderSettings(); applyFx(); toast("Réinitialisé");
   });
 
@@ -1653,7 +1737,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
   function mpLeave(erase) {
     if (MP) MP.unsubs.forEach(u => { try { u(); } catch {} });
-    MP = null;
+    MP = null; FLAGS.regie = false;
     if (erase) forget();
     destroyNet();
   }
@@ -1859,6 +1943,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       else if (op === "queueDel") await aovSave({ queue: (a.queue || []).filter((q, i) => i !== args.i) });
       else if (op === "now") await aovSave({ phase: "prompt", type: args.type, trap: false, text: args.text });
       else if (op === "banner") await aovSave({ banner: { id: Date.now(), text: args.text } });
+      else if (op === "scare") await aovSave({ scare: { id: Date.now() } });
       else if (op === "reroll") { if (a.phase === "prompt") await aovSave({ text: aovDraw(a.type, mm.room.mode, mm.used) }); }
       else if (op === "end") await DB.doc("rooms/" + mm.code).set({ ...mm.room, status: "lobby", aov: null });
     });
@@ -1908,6 +1993,10 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     if (b && b.id && MP.avBanner !== b.id) { if (MP.avBanner !== undefined && b.text) showMsg(b.text); MP.avBanner = b.id; }
     else if (MP.avBanner === undefined) MP.avBanner = b ? b.id : 0;
     const regie = !!(MP.regie && MP.regie.id === myId);
+    FLAGS.regie = regie;
+    const scr = a.scare;
+    if (scr && scr.id && MP.avScare !== scr.id) { if (MP.avScare !== undefined && !regie) doScare({ force: true }); MP.avScare = scr.id; }
+    else if (MP.avScare === undefined) MP.avScare = scr ? scr.id : 0;
     $("#avPanel").hidden = !regie;
     if (regie) refreshAvPanel(a);
     showIf("mpAov");
@@ -1962,6 +2051,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     regieCmd("now", { type: $("#avQType").value, text: t }); $("#avQText").value = ""; };
   $("#avSend").onclick = () => { const t = $("#avMsg").value.trim(); if (!t) return;
     regieCmd("banner", { text: t }); $("#avMsg").value = ""; };
+  $("#avScare").onclick = () => regieCmd("scare");
   $("#avReroll").onclick = () => regieCmd("reroll");
   $("#avEnd").onclick = e => twoStep(e.currentTarget, "Confirmer la fin ?", () => regieCmd("end"));
 
