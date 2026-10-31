@@ -603,7 +603,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       </div>
       <div class="box">
         <label for="lobbyKind">Type de partie</label>
-        <select id="lobbyKind"><option value="vote">Qui est le plus... (votes)</option><option value="aov">Action ou Vérité</option></select>
+        <select id="lobbyKind"><option value="vote">Qui est le plus... (votes)</option><option value="aov">Action ou Vérité</option><option value="mystery">Question mystère</option><option value="duel">Duel</option><option value="tf">Vrai ou faux</option><option value="who">Qui a dit ça ?</option></select>
       </div>
       <button class="btn primary" id="lobbyStart">Lancer la partie</button>
     </div>
@@ -621,6 +621,17 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
     <div id="mpVoteBtns"></div>
     <button class="btn" id="mpForce">Forcer le résultat (hôte)</button>
     <button class="btn ghost back mpLeaveBtn">Quitter la partie</button>
+  </section>
+
+  <!-- MULTIJOUEUR : MINI-JEUX EN SALON -->
+  <section class="screen" id="mpMg">
+    <div class="hud"><span id="mpMgHud"></span><span id="mpMgName"></span></div>
+    <div id="mpMgMain"></div>
+    <button class="btn primary" id="mpMgNext" hidden>Suivant</button>
+    <button class="btn" id="mpMgForce" hidden>Continuer sans attendre</button>
+    <button class="btn ghost" id="mpMgBack" hidden>Retour au salon (hôte)</button>
+    <button class="btn ghost back mpLeaveBtn">Quitter le salon</button>
+    <button class="btn ghost mpCloseBtn">Fermer le salon</button>
   </section>
 
   <!-- MULTIJOUEUR : ACTION OU VÉRITÉ -->
@@ -881,7 +892,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
 
   /* ---------- Effets d'horreur ---------- */
-  const HORROR = new Set(["mpAov", "mini", "scores", "vote", "result", "final", "mpLobby", "mpVote", "mpResult", "mpFinal"]);
+  const HORROR = new Set(["mpMg", "mpAov", "mini", "scores", "vote", "result", "final", "mpLobby", "mpVote", "mpResult", "mpFinal"]);
   const WHISPERS = ["Il est derrière toi...", "Ne te retourne pas", "Tu n'es pas seul", "Ils savent ce que tu as fait", "Un de vous ment", "Elle t'observe...", "Trop tard..."];
   const calmMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -1760,6 +1771,7 @@ void main(){
     tf: { name: "Vrai ou faux", min: 3, desc: "Un joueur répond en secret à une affirmation sur lui, les autres devinent." },
     who: { name: "Qui a dit ça ?", min: 3, desc: "Chacun écrit une phrase anonyme, puis tout le monde devine l'auteur." },
     aov: { name: "Action ou Vérité", min: 2, desc: "Un bouton Action, un bouton Vérité. Une énorme banque, par niveau de mode." },
+    mystery: { name: "Question mystère", min: 2, desc: "On vote sans connaître la question. Elle est révélée après le dernier vote." },
     never: { name: "Jamais je n'ai...", min: 2, desc: "Une affirmation s'affiche : touche ceux qui l'ont déjà fait." }
   };
   const TF_STATEMENTS = [
@@ -1817,6 +1829,9 @@ void main(){
       S.order = shuffle([...pl.keys()]); S.sts = shuffle(TF_STATEMENTS); tfNew(S);
     } else if (t === "who") {
       S.prompt = pick(WHO_PROMPTS); S.texts = []; S.phase = "write"; S.total = pl.length;
+    } else if (t === "mystery") {
+      const pool = questions[mode].length ? questions[mode] : MODES.chill.q;
+      S.qs = shuffle(pool).slice(0, total); S.total = S.qs.length; mysteryNew(S);
     } else if (t === "aov") {
       S.order = shuffle([...pl.keys()]); S.used = new Set(); S.phase = "choose"; S.total = Infinity;
     } else {
@@ -1828,6 +1843,8 @@ void main(){
   const passHTML = (i, extra) => `<p class="verdict" style="margin:24px 0 8px">Passe le téléphone à<br><b>${nm(i)}</b></p>${extra || ""}`;
   const barsHTML = (rows) => rows.map(r => `<div class="res ${r.win ? "win" : ""}"><div class="nm"><span>${r.n}</span><span>${r.txt}</span></div><div class="track"><i style="width:${r.pct}%"></i></div></div>`).join("");
 
+  /* --- Question mystère --- */
+  function mysteryNew(S) { S.d = { voters: shuffle([...S.players.keys()]), vi: 0, votes: S.players.map(() => 0) }; S.phase = "vote"; }
   /* --- Duel --- */
   function duelNew(S) {
     const idx = shuffle([...S.players.keys()]);
@@ -1898,6 +1915,19 @@ void main(){
         `<div class="qrow"><span>${nm(d.it.a)} (a trompé)</span><b>+${d.gs.filter((g, k) => d.guess[k] !== d.it.a).length}</b></div></div>` +
         `<button class="btn primary" data-a="next">${S.round + 1 >= S.total ? "Voir le verdict final" : "Suivant"}</button>`;
     },
+    mystery(S) {
+      const d = S.d, q = esc(S.qs[S.round]);
+      if (S.phase === "vote") {
+        return `<div class="question"><em>QUESTION MYSTÈRE</em><span>❓ ❓ ❓</span></div>` +
+          `<p class="voter">Vote de <b>${nm(d.voters[d.vi])}</b></p><p class="sub">Tu ne connais pas la question. Désigne celui que tu sens le plus concerné.</p>` +
+          S.players.map((p, i) => `<button class="btn" data-a="mv" data-i="${i}">${nm(i)}</button>`).join("");
+      }
+      const max = Math.max(...d.votes), w = S.players.map((p, i) => d.votes[i] === max ? nm(i) : null).filter(Boolean);
+      return `<div class="question"><em>LA QUESTION ÉTAIT : QUI EST LE PLUS...</em><span>${q}</span></div>` +
+        barsHTML(S.players.map((p, i) => ({ n: nm(i), txt: d.votes[i] + " vote(s)", pct: d.votes[i] / S.players.length * 100, win: d.votes[i] === max }))) +
+        `<div class="verdict">${w.length === 1 ? T(`☠ ${w[0]} est condamné(e) ☠`, `${w[0]} est désigné(e)`) : "Égalité : " + w.join(", ")}</div>` +
+        `<button class="btn primary" data-a="next">${S.round + 1 >= S.total ? "Voir le verdict final" : "Question suivante"}</button>`;
+    },
     aov(S) {
       const cur = S.order[S.round % S.players.length];
       if (S.phase === "choose") {
@@ -1932,6 +1962,7 @@ void main(){
     if (S.type === "duel") duelNew(S);
     else if (S.type === "tf") tfNew(S);
     else if (S.type === "who") whoNew(S);
+    else if (S.type === "mystery") mysteryNew(S);
     mgRender();
   }
   function mgFinal() {
@@ -1985,6 +2016,11 @@ void main(){
           d.gs.forEach((g, k) => { if (d.guess[k] === d.it.a) S.scores[g]++; else S.scores[d.it.a]++; });
           S.phase = "res";
         }
+      }
+    } else if (S.type === "mystery") {
+      if (a === "mv") {
+        d.votes[i]++; d.vi++;
+        if (d.vi >= d.voters.length) { const max = Math.max(...d.votes); d.votes.forEach((v, k) => { if (v === max) S.scores[k]++; }); S.phase = "res"; }
       }
     } else if (S.type === "aov") {
       const cur = S.order[S.round % S.players.length];
@@ -2159,7 +2195,7 @@ void main(){
   function enterRoom(code) {
     if (MP) MP.unsubs.forEach(u => { try { u(); } catch {} });
     save("qelp_room", code);
-    const m = MP = { code, room: null, players: {}, votes: {}, picks: {}, dones: {}, regie: null, specs: {}, cmdReady: false, lastCmd: null, used: new Set(), unsubs: [], host: false, busy: false, voting: false, closing: false };
+    const m = MP = { code, room: null, players: {}, votes: {}, picks: {}, dones: {}, regie: null, acts: {}, specs: {}, cmdReady: false, lastCmd: null, used: new Set(), unsubs: [], host: false, busy: false, voting: false, closing: false };
     const base = "rooms/" + code;
     const err = () => toast("Connexion perdue avec le salon");
     m.unsubs.push(DB.doc(base).onSnapshot(s => {
@@ -2203,6 +2239,10 @@ void main(){
       if (!m.cmdReady) { m.cmdReady = true; m.lastCmd = c ? c.n : null; return; }
       if (c && c.n !== m.lastCmd) { m.lastCmd = c.n; if (m.host && m.room && m.room.status === "aov") runCmd(c.op, c.args || {}); }
     }, err));
+    m.unsubs.push(DB.collection(base + "/mgact").onSnapshot(q => {
+      m.acts = Object.fromEntries(q.docs.map(d => [d.id, d.data()]));
+      mpRender(); hostCheck();
+    }, err));
     m.unsubs.push(DB.collection(base + "/aovdone").onSnapshot(q => {
       m.dones = Object.fromEntries(q.docs.map(d => [d.id, d.data()]));
       mpRender(); hostCheck();
@@ -2231,6 +2271,7 @@ void main(){
     else if (st === "result") renderMpResult();
     else if (st === "final") renderMpFinal();
     else if (st === "aov") renderAov();
+    else if (st === "mg") renderMg();
   }
 
   function renderLobby() {
@@ -2246,9 +2287,10 @@ void main(){
     $("#lobbyWait").hidden = MP.host;
     $("#lobbyMode").value = r.mode;
     $("#lobbyRounds").value = String(r.rounds);
-    const aov = r.kind === "aov", min = aov ? 1 : 2;
+    const aov = r.kind === "aov", min = aov ? 1 : ({ duel: 3, tf: 3, who: 3, mystery: 2 }[r.kind] || 2);
     $("#lobbyKind").value = r.kind || "vote";
-    $("#lobbyInfo").textContent = `${aov ? "Action ou Vérité · " : ""}${(MODES[r.mode] || {}).name || ""}${aov ? "" : " · " + (r.rounds ? r.rounds + " manches" : "manches infinies")}`;
+    const KN = { aov: "Action ou Vérité", duel: "Duel", tf: "Vrai ou faux", who: "Qui a dit ça ?", mystery: "Question mystère" };
+    $("#lobbyInfo").textContent = `${KN[r.kind] ? KN[r.kind] + " · " : ""}${(MODES[r.mode] || {}).name || ""}${r.kind === "vote" || !r.kind ? " · " + (r.rounds ? r.rounds + " manches" : "manches infinies") : ""}`;
     const rg = MP.regie, mineR = !!(rg && rg.id === myId);
     $("#lobbyRolesRow").hidden = !aov;
     $("#lobbyRegie").checked = mineR;
@@ -2289,6 +2331,7 @@ void main(){
   $("#lobbySpec").onchange = e => setRole("spec", e.target.checked);
   $("#lobbyStart").onclick = async () => {
     const m = MP; if (!m || !m.host) return;
+    if (["duel", "tf", "who", "mystery"].includes(m.room.kind)) { await mgStart(m.room.kind); return; }
     if (m.room.kind === "aov") {
       const ids = Object.keys(m.players); if (!ids.length) return;
       const order = shuffle(ids); m.used = new Set();
@@ -2339,6 +2382,7 @@ void main(){
   $("#mpForce").onclick = () => finishRound();
 
   function hostCheck() {
+    if (MP && MP.host && MP.room && MP.room.status === "mg") { mgStep(false); return; }
     if (MP && MP.host && MP.room && MP.room.status === "aov" && MP.room.aov) {
       const a = MP.room.aov;
       if (a.phase === "choose") { const pk = MP.picks[a.turn]; if (pk && pk.seq === a.seq) aovPrompt(pk.type); }
@@ -2579,6 +2623,154 @@ void main(){
   $("#avScare").onclick = () => regieCmd("scare", { to: $("#avScareTo").value || "all", text: $("#avScareTxt").value.trim() });
   $("#avReroll").onclick = () => regieCmd("reroll");
   $("#avEnd").onclick = e => twoStep(e.currentTarget, "Confirmer la fin ?", () => regieCmd("end"));
+
+
+  /* --- Mini-jeux en salon : l'hôte tient l'état, chaque joueur répond via son document mgact --- */
+  const MGK_NAMES = { duel: "Duel", tf: "Vrai ou faux", who: "Qui a dit ça ?", mystery: "Question mystère" };
+  const mgSave = patch => DB.doc("rooms/" + MP.code).set({ ...MP.room, mg: { ...MP.room.mg, ...patch } });
+  const mgActs = mg => Object.fromEntries(Object.entries(MP.acts).filter(([id, a]) => a.seq === mg.seq && a.game === MP.room.game && MP.players[id]));
+  function mgReq(mg) {
+    const ids = Object.keys(MP.players), d = mg.d || {};
+    if (mg.type === "duel") return mg.phase === "vote" ? ids.filter(i => !d.pair.includes(i)) : [];
+    if (mg.type === "tf") return mg.phase === "ans" ? [d.t] : mg.phase === "guess" ? ids.filter(i => i !== d.t) : [];
+    if (mg.type === "who") return mg.phase === "write" ? ids : mg.phase === "guess" ? ids.filter(i => i !== d.it.a) : [];
+    if (mg.type === "mystery") return mg.phase === "vote" ? ids : [];
+    return [];
+  }
+  async function mgStart(kind) {
+    const m = MP, r = m.room, ids = Object.keys(m.players), min = { duel: 3, tf: 3, who: 3, mystery: 2 }[kind];
+    if (ids.length < min) { toast(`Il faut au moins ${min} joueurs`); return; }
+    const pool = questions[r.mode] && questions[r.mode].length ? questions[r.mode] : MODES.chill.q;
+    const total = Math.min(r.rounds || 10, 10);
+    const mg = { type: kind, seq: 1, round: 0, total, phase: "vote", scores: {}, d: {} };
+    if (kind === "duel" || kind === "mystery") mg.qs = shuffle(pool).slice(0, total), mg.total = mg.qs.length;
+    if (kind === "duel") { const o = shuffle(ids); mg.d = { pair: o.slice(0, 2), q: mg.qs[0], votes: [0, 0] }; }
+    else if (kind === "mystery") mg.d = { q: mg.qs[0] };
+    else if (kind === "tf") { mg.order = shuffle(ids); mg.sts = shuffle(TF_STATEMENTS); mg.d = { t: mg.order[0], st: mg.sts[0], truth: null, gs: [], guess: {} }; mg.phase = "ans"; }
+    else { mg.phase = "write"; mg.total = ids.length; mg.d = {}; }
+    try { await DB.doc("rooms/" + m.code).set({ ...r, status: "mg", game: Date.now(), mg }); } catch (e) { mpErr(e); }
+  }
+  async function mgStep(force) {
+    const m = MP; if (!m || !m.host || m.busy || m.room.status !== "mg") return;
+    const mg = m.room.mg; if (!mg || mg.phase === "res" || mg.phase === "done") return;
+    const req = mgReq(mg), acts = mgActs(mg), got = req.filter(id => acts[id]);
+    if (!req.length || (!force && got.length < req.length)) return;
+    m.busy = true;
+    try {
+      const sc = { ...(mg.scores || {}) }, add = (id, n = 1) => { sc[id] = (sc[id] || 0) + n; };
+      let d = { ...mg.d }, phase = mg.phase, total = mg.total;
+      if (mg.type === "duel") {
+        const votes = [0, 0]; got.forEach(id => { const v = +acts[id].v; if (v === 0 || v === 1) votes[v]++; });
+        const max = Math.max(...votes); d.pair.forEach((p, k) => { if (max > 0 && votes[k] === max) add(p); });
+        d.votes = votes; phase = "res";
+      } else if (mg.type === "mystery") {
+        const counts = {}; Object.keys(m.players).forEach(id => counts[id] = 0);
+        got.forEach(id => { const v = acts[id].v; if (v in counts) counts[v]++; });
+        const max = Math.max(...Object.values(counts)), winners = Object.keys(counts).filter(id => counts[id] === max);
+        if (max > 0) winners.forEach(id => add(id));
+        d.counts = counts; d.winners = winners; phase = "res";
+      } else if (mg.type === "tf") {
+        if (mg.phase === "ans") { d.truth = acts[d.t] ? acts[d.t].v === "1" : Math.random() < .5; d.gs = Object.keys(m.players).filter(i => i !== d.t); d.guess = {}; phase = "guess"; }
+        else {
+          const guess = {}; got.forEach(id => { guess[id] = acts[id].v === "1"; });
+          Object.entries(guess).forEach(([id, g]) => { if (g === d.truth) add(id); else add(d.t); });
+          d.guess = guess; phase = "res";
+        }
+      } else if (mg.type === "who") {
+        if (mg.phase === "write") {
+          const items = shuffle(got.map(id => ({ a: id, text: String(acts[id].v).slice(0, 140) })));
+          if (items.length < 2) { toast("Pas assez de phrases écrites"); m.busy = false; return; }
+          d = { items, idx: 0, it: items[0], guess: {} }; total = items.length; phase = "guess";
+        } else {
+          const guess = {}; got.forEach(id => { guess[id] = acts[id].v; });
+          Object.entries(guess).forEach(([id, g]) => { if (g === d.it.a) add(id); else add(d.it.a); });
+          d.guess = guess; phase = "res";
+        }
+      }
+      await mgSave({ d, phase, total, scores: sc, seq: mg.seq + 1 });
+    } catch (e) { mpErr(e); }
+    m.busy = false;
+  }
+  async function mgNext() {
+    const m = MP; if (!m || !m.host || m.busy || m.room.status !== "mg") return;
+    const mg = m.room.mg; if (mg.phase !== "res") return;
+    m.busy = true;
+    try {
+      const round = mg.round + 1, ids = Object.keys(m.players);
+      if (round >= mg.total) { await mgSave({ phase: "done", seq: mg.seq + 1 }); m.busy = false; return; }
+      let d, phase = "vote";
+      if (mg.type === "duel") { const o = shuffle(ids); d = { pair: o.slice(0, 2), q: mg.qs[round], votes: [0, 0] }; }
+      else if (mg.type === "mystery") d = { q: mg.qs[round] };
+      else if (mg.type === "tf") { d = { t: mg.order[round % mg.order.length], st: mg.sts[round % mg.sts.length], truth: null, gs: [], guess: {} }; phase = "ans"; }
+      else { d = { items: mg.d.items, idx: round, it: mg.d.items[round], guess: {} }; phase = "guess"; }
+      await mgSave({ round, d, phase, seq: mg.seq + 1 });
+    } catch (e) { mpErr(e); }
+    m.busy = false;
+  }
+  function renderMg() {
+    const r = MP.room, mg = r.mg; if (!mg) return;
+    const d = mg.d || {}, ids = Object.keys(MP.players), me = myId, host = MP.host;
+    const acts = mgActs(mg), req = mgReq(mg), got = req.filter(id => acts[id]).length, acted = !!acts[me];
+    const key = mg.seq + ":" + mg.phase, changed = MP.mgKey !== key; MP.mgKey = key;
+    const wait = `<p class="sub">En attente des autres (${got}/${req.length})...</p>`;
+    const bars = rows => barsHTML(rows);
+    let html = "", name = MGK_NAMES[mg.type] || "";
+    const q = t => esc(t);
+    if (mg.phase === "done") {
+      const order = ids.sort((a, b) => (mg.scores[b] || 0) - (mg.scores[a] || 0)), top = mg.scores[order[0]] || 0;
+      const champs = order.filter(i => (mg.scores[i] || 0) === top).map(pname);
+      html = `<div class="verdict">${T("☠ ", "")}${champs.join(" & ")} ${champs.length > 1 ? "sont en tête" : "est en tête"}${T(" ☠", "")}</div>` +
+        `<div class="box"><table><thead><tr><th>Joueur</th><th class="num">Points</th></tr></thead><tbody>` + order.map(i => `<tr><td>${pname(i)}</td><td class="num">${mg.scores[i] || 0}</td></tr>`).join("") + `</tbody></table></div>`;
+      save(K.last, order.map(i => ({ name: (MP.players[i] || {}).name || "?", score: mg.scores[i] || 0 })));
+    } else if (mg.type === "duel") {
+      const [a, b] = d.pair, head = `<div class="question"><em>DUEL : ${pname(a)} VS ${pname(b)}</em><span>${q(d.q)}</span></div>`;
+      if (mg.phase === "vote") html = head + (d.pair.includes(me) ? `<p class="sub">Tu es dans le duel. Les autres votent...</p>` + wait : acted ? `<p class="sub">Vote enregistré.</p>` + wait : `<p class="sub">Qui est le plus... ? Choisis en secret.</p><button class="btn" data-mgv="0">${pname(a)}</button><button class="btn" data-mgv="1">${pname(b)}</button>`);
+      else { const max = Math.max(...d.votes), n = Math.max(1, ids.length - 2), w = d.pair.filter((p, k) => d.votes[k] === max).map(pname);
+        html = head + bars(d.pair.map((p, k) => ({ n: pname(p), txt: d.votes[k] + " vote(s)", pct: d.votes[k] / n * 100, win: d.votes[k] === max }))) + `<div class="verdict">${w.length === 1 ? T(`☠ ${w[0]} l'emporte ☠`, `${w[0]} l'emporte`) : "Égalité"}</div>`; }
+    } else if (mg.type === "mystery") {
+      if (mg.phase === "vote") html = `<div class="question"><em>QUESTION MYSTÈRE</em><span>❓ ❓ ❓</span></div>` + (acted ? `<p class="sub">Vote enregistré.</p>` + wait : `<p class="sub">Tu ne connais pas la question. Désigne celui que tu sens le plus concerné.</p>` + ids.map(id => `<button class="btn" data-mgv="${esc(id)}">${pname(id)}</button>`).join(""));
+      else { const c = d.counts || {}, max = Math.max(...Object.values(c)), w = (d.winners || []).map(pname);
+        html = `<div class="question"><em>LA QUESTION ÉTAIT : QUI EST LE PLUS...</em><span>${q(d.q)}</span></div>` + bars(Object.keys(c).sort((x, y) => c[y] - c[x]).map(id => ({ n: pname(id), txt: c[id] + " vote(s)", pct: c[id] / Math.max(1, ids.length) * 100, win: c[id] === max }))) +
+          `<div class="verdict">${w.length === 1 ? T(`☠ ${w[0]} est condamné(e) ☠`, `${w[0]} est désigné(e)`) : "Égalité : " + w.join(", ")}</div>`; }
+    } else if (mg.type === "tf") {
+      const t = d.t, tn = pname(t);
+      if (mg.phase === "ans") html = me === t ? (acted ? `<p class="sub">Réponse enregistrée.</p>` : `<p class="verdict" style="margin:14px 0 4px">Réponds en secret, ${tn}</p><div class="question"><span>${q(d.st)}</span></div><p class="sub">Cette affirmation est-elle vraie pour toi ?</p><div class="row"><button class="btn primary" data-mgv="1">Vrai</button><button class="btn" data-mgv="0">Faux</button></div>`) : `<p class="verdict">${tn} répond en secret...</p>`;
+      else if (mg.phase === "guess") html = `<div class="question"><em>${tn} AFFIRME</em><span>${q(d.st)}</span></div>` + (me === t ? `<p class="sub">Les autres devinent si c'est vrai...</p>` + wait : acted ? `<p class="sub">Réponse enregistrée.</p>` + wait : `<p class="sub">Est-ce vrai ? Réponds en secret.</p><div class="row"><button class="btn primary" data-mgv="1">Vrai</button><button class="btn" data-mgv="0">Faux</button></div>`);
+      else html = `<div class="question"><em>${tn} AFFIRMAIT</em><span>${q(d.st)}</span></div><div class="verdict">C'était ${d.truth ? "VRAI" : "FAUX"}</div><div class="box">` +
+        d.gs.map(g => `<div class="qrow"><span>${pname(g)} a dit ${d.guess[g] === undefined ? "?" : d.guess[g] ? "vrai" : "faux"}</span><b>${d.guess[g] === d.truth ? "✔ +1" : "✘"}</b></div>`).join("") + `</div>`;
+    } else if (mg.type === "who") {
+      if (mg.phase === "write") html = acted ? `<p class="sub">Phrase enregistrée.</p>` + wait : `<p class="verdict" style="margin:14px 0 4px">Écris une phrase anonyme</p><p class="sub">Une chose gênante, un secret inoffensif, une excuse... Personne ne saura que c'est toi.</p><textarea id="mpMgText" maxlength="140" placeholder="Ta phrase..."></textarea><button class="btn primary" id="mpMgSubmit">Valider</button>`;
+      else if (mg.phase === "guess") html = `<div class="question"><em>QUI A ÉCRIT ÇA ?</em><span>« ${q(d.it.text)} »</span></div>` + (me === d.it.a ? `<p class="sub">C'est ta phrase ! Les autres cherchent...</p>` + wait : acted ? `<p class="sub">Réponse enregistrée.</p>` + wait : ids.filter(i => i !== me).map(id => `<button class="btn" data-mgv="${esc(id)}">${pname(id)}</button>`).join(""));
+      else html = `<div class="question"><em>L'AUTEUR EST...</em><span>« ${q(d.it.text)} »</span></div><div class="verdict">${pname(d.it.a)}</div><div class="box">` +
+        Object.keys(d.guess).map(g => `<div class="qrow"><span>${pname(g)} a dit ${pname(d.guess[g])}</span><b>${d.guess[g] === d.it.a ? "✔ +1" : "✘"}</b></div>`).join("") + `</div>`;
+    }
+    if (mg.phase !== "done") {
+      const sc = ids.map(id => `${pname(id)} <b>${mg.scores[id] || 0}</b>`).join(" · ");
+      html += `<div class="box"><h3>Points</h3><p>${sc}</p></div>`;
+    }
+    $("#mpMgHud").textContent = mg.phase === "done" ? "Verdict" : mg.phase === "write" ? "Écriture" : `Manche ${mg.round + 1}/${mg.total}`;
+    $("#mpMgName").textContent = name;
+    $("#mpMgMain").innerHTML = html;
+    $("#mpMgNext").hidden = !(host && mg.phase === "res");
+    $("#mpMgNext").textContent = mg.round + 1 >= mg.total ? "Voir le verdict final" : "Suivant";
+    $("#mpMgForce").hidden = !(host && req.length && got > 0 && got < req.length);
+    $("#mpMgBack").hidden = !(host && mg.phase === "done");
+    showIf("mpMg");
+    if (changed && mg.phase === "res") jolt("mpMg");
+  }
+  $("#mpMgMain").addEventListener("click", async e => {
+    const m = MP; if (!m || m.voting) return;
+    const b = e.target.closest("[data-mgv],#mpMgSubmit"); if (!b) return;
+    let v;
+    if (b.id === "mpMgSubmit") { v = $("#mpMgText").value.trim(); if (!v) { toast("Écris quelque chose"); return; } }
+    else v = b.dataset.mgv;
+    m.voting = true;
+    try { await DB.doc(`rooms/${m.code}/mgact/${myId}`).set({ seq: m.room.mg.seq, game: m.room.game, v }); vibrate(40); } catch (err) { mpErr(err); }
+    m.voting = false;
+  });
+  $("#mpMgNext").onclick = () => mgNext();
+  $("#mpMgForce").onclick = () => mgStep(true);
+  $("#mpMgBack").onclick = async () => { const m = MP; if (!m || !m.host) return; try { await DB.doc("rooms/" + m.code).set({ ...m.room, status: "lobby", mg: null }); } catch (err) { mpErr(err); } };
 
   document.querySelectorAll(".mpLeaveBtn").forEach(b => b.addEventListener("click", () =>
     twoStep(b, "Confirmer ?", () => { mpLeave(true); show("menu"); })));
