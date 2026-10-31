@@ -233,7 +233,7 @@ body[data-screen="menu"] #calmBtn{display:block}
 .aovbtn.trap:hover{background:var(--blood)}
 #avPanel{border-top:2px dashed var(--blood);margin-top:20px;padding-top:6px}
 #avPanel .btn{margin:6px 0}
-#scare{position:fixed;inset:0;z-index:95;display:none;background:#000;cursor:pointer}
+#scare{position:fixed;inset:0;z-index:110;display:none;background:#000;cursor:pointer}
 #scare.on{display:block;animation:scareBg 1.3s linear forwards}
 #scare canvas{width:100%;height:100%;display:block;filter:contrast(1.3) saturate(1.2);animation:scareZoom 1.3s ease-in forwards}
 @keyframes scareBg{0%{background:#fff}5%{background:#000}85%{opacity:1}100%{opacity:0}}
@@ -321,6 +321,13 @@ body[data-screen="menu"] #menuTools{display:flex}
 .mgrid .card{padding:12px;min-width:0}
 .mgrid .card .ic{font-size:1.4rem}
 .mgrid .card b{overflow-wrap:normal}
+#splashGhost,#splashFx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#splashGhost{z-index:1;opacity:0;mix-blend-mode:screen;filter:blur(2px) contrast(1.2);transition:opacity .9s ease}
+#splashFx{z-index:4}
+#splash .cut{position:absolute;inset:0;background:#000;z-index:7;opacity:0;pointer-events:none}
+#skipHint{position:absolute;left:0;right:0;bottom:64px;text-align:center;z-index:8;color:var(--dim);font-size:.72rem;letter-spacing:.2em;opacity:0;transition:opacity .8s}
+#skipHint.on{opacity:.7}
+body.noFx #splashGhost,body.noFx #splashFx,body.noFx #splash .cut{display:none}
 /* ---------- Footer ---------- */
 #footer{
   position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;
@@ -342,12 +349,15 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   <div class="blood" id="bloodS"></div>
   <div class="rec"><span class="dot"></span> REC <b id="recTime">00:00:00</b></div>
   <div class="cam">NIGHT VISION <i></i></div>
+  <canvas id="splashGhost"></canvas>
+  <canvas id="splashFx"></canvas>
   <canvas id="splashEye" width="300" height="160"></canvas>
   <h1 id="splashTitle">CHARGEMENT DES ÂMES...</h1>
   <div class="bar vein"><i id="splashBar"></i></div>
   <div id="splashPct">0%</div>
   <div id="splashWhisper"></div>
-  <div class="roll"></div><div class="scan"></div>
+  <div class="roll"></div><div class="scan"></div><div class="cut"></div>
+  <div id="skipHint">Touche pour passer</div>
 </div>
 <div id="menuTools">
   <button id="fxBtn" type="button" aria-pressed="true" title="Effets d'horreur"></button>
@@ -967,7 +977,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   const normName = n => String(n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   const scareImg = {};
   Object.entries(SCARE_IMAGES).forEach(([k, src]) => { const im = new Image(); im.src = src; scareImg[normName(k)] = im; });
-  function drawScare(cv, name) {
+  function drawScare(cv, name, forceKind) {
     const w = cv.width = Math.min(innerWidth, 1000), h = cv.height = Math.min(innerHeight, 1000), c = cv.getContext("2d");
     c.fillStyle = "#000"; c.fillRect(0, 0, w, h);
     const im = scareImg[normName(name)];
@@ -978,7 +988,7 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
       g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(60,0,6,.75)"); c.fillStyle = g; c.fillRect(0, 0, w, h);
       return;
     }
-    const kind = pick(["face", "eyes", "mouth"]), cx = w / 2, cy = h / 2;
+    const kind = forceKind || pick(["face", "eyes", "mouth"]), cx = w / 2, cy = h / 2;
     const glow = (x, y, r, col) => { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col); g.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); };
     const teeth = (x0, x1, y, dir, size, n) => { c.fillStyle = "#cfc8bb"; for (let i = 0; i < n; i++) { const x = x0 + (x1 - x0) * (i + .5) / n, bw = (x1 - x0) / n * .45; c.beginPath(); c.moveTo(x - bw, y); c.lineTo(x + bw, y); c.lineTo(x + (Math.random() - .5) * bw, y + dir * size * (.7 + Math.random() * .5)); c.fill(); } };
     if (kind === "face") {
@@ -1084,9 +1094,9 @@ body.noFx #footer{animation:none;text-shadow:0 0 6px var(--blood)}
   }
 
   /* ---------- Rendu WebGL : brouillard volumétrique, rayons de lumière, lueur qui suit le doigt ---------- */
-  const GL = { gl: null, failed: false, raf: 0, m: [.5, .5], t0: performance.now(), on: false };
+  const GL = { gl: null, failed: false, raf: 0, k: .45, m: [.5, .5], t0: performance.now(), on: false };
   const GL_FS = `precision mediump float;
-uniform vec2 r; uniform float t; uniform vec2 m;
+uniform vec2 r; uniform float t; uniform vec2 m; uniform float k;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),f.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),f.x),f.y);}
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p=p*2.02+vec2(1.7,9.2);a*=.5;}return v;}
@@ -1096,12 +1106,20 @@ void main(){
   float f=fbm(p*1.4+q*2.2+vec2(-t*.045,t*.018));
   float fog=smoothstep(.3,.95,f);
   vec3 col=vec3(.018,.0,.01);
-  col+=fog*vec3(.30,.035,.05)*(.35+.65*(1.-uv.y));
+  col+=fog*vec3(.30,.035,.05)*(.35+.65*(1.-uv.y))*(.7+k*.8);
   float shaft=pow(max(0.,1.-abs(uv.x-.55-.14*sin(t*.11))*2.4),3.)*smoothstep(.0,1.,uv.y)*.28;
   col+=shaft*vec3(.55,.5,.45)*(.4+f);
   float d=distance(uv*vec2(r.x/r.y,1.),m*vec2(r.x/r.y,1.));
   col+=vec3(.55,.05,.06)*.11/(d*d*24.+.25);
   float flick=.94+.06*sin(t*17.+sin(t*5.)*3.);
+  float asp=r.x/r.y;
+  vec2 lp=vec2(.5+.08*sin(t*.7),.95);
+  float fl=step(.45,h(vec2(floor(t*11.),3.)))*.55+.45;
+  vec2 dv=uv-lp; dv.x*=asp;
+  float dl=length(dv);
+  col+=vec3(1.,.78,.58)*.05/(dl*dl+.03)*fl*(.5-k*.25);
+  float rays=pow(.5+.5*sin(atan(dv.y,dv.x)*13.+t*.25+f*2.),7.)*smoothstep(1.05,.0,dl)*(.22+k*.12);
+  col+=rays*vec3(.75,.55,.42)*fl;
   col*=flick;
   // poussière en suspension (3 plans de profondeur)
   float dd=0.;
@@ -1125,7 +1143,7 @@ void main(){
       const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
       const loc = gl.getAttribLocation(pr, "a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-      GL.gl = gl; GL.u = { r: gl.getUniformLocation(pr, "r"), t: gl.getUniformLocation(pr, "t"), m: gl.getUniformLocation(pr, "m") };
+      GL.gl = gl; GL.u = { k: gl.getUniformLocation(pr, "k"), r: gl.getUniformLocation(pr, "r"), t: gl.getUniformLocation(pr, "t"), m: gl.getUniformLocation(pr, "m") };
       return true;
     } catch { GL.failed = true; return false; }
   }
@@ -1141,6 +1159,7 @@ void main(){
     gl.uniform2f(GL.u.r, gl.canvas.width, gl.canvas.height);
     gl.uniform1f(GL.u.t, (performance.now() - GL.t0) / 1000);
     gl.uniform2f(GL.u.m, GL.m[0], GL.m[1]);
+    gl.uniform1f(GL.u.k, GL.k);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     GL.raf = requestAnimationFrame(glLoop);
   }
@@ -1257,39 +1276,83 @@ void main(){
     lid(); c.strokeStyle = "#1a0607"; c.lineWidth = 5; c.stroke();
   }
   (function splash() {
-    let p = 0;
-    const bar = $("#splashBar"), pct = $("#splashPct"), title = $("#splashTitle"), wh = $("#splashWhisper");
-    const base = title.textContent, glyphs = "█▓▒░#@%&?†✝";
-    const corrupt = t => [...t].map(c => c !== " " && Math.random() < .25 ? pick([...glyphs]) : c).join("");
-    const fxIv = setInterval(() => {
-      if (!settings.fx || settings.calm) { wh.textContent = ""; return; }
-      wh.textContent = pick(WHISPERS);
-      title.textContent = corrupt(base);
-      setTimeout(() => { title.textContent = base; }, 140);
-    }, 1100);
-    const eye = $("#splashEye"), rec = $("#recTime"), t0 = performance.now();
-    let blink = 0;
-    const eyeIv = setInterval(() => {
-      const t = (performance.now() - t0) / 1000;
-      rec.textContent = "00:" + String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(Math.floor(t % 60)).padStart(2, "0");
-      if (blink <= 0 && Math.random() < .03) blink = 4;
-      const open = Math.min(1, .08 + p / 100 * 1.1) * (blink > 0 ? Math.abs(blink - 2) / 2 : 1);
-      if (blink > 0) blink--;
-      drawEye(eye, open, t);
-    }, 45);
-    const iv = setInterval(() => {
-      if (Math.random() < .15) return; // la barre hésite
-      p = Math.min(100, p + Math.random() * 9 + 2);
-      bar.style.width = p + "%"; pct.textContent = Math.floor(p) + "%";
-      if (p >= 100) {
-        clearInterval(iv); clearInterval(fxIv); clearInterval(eyeIv); title.textContent = base;
-        setTimeout(() => {
-          $("#splash").classList.add("out");
-          show("menu");
-          setTimeout(() => { $("#splash").remove(); glUpdate(); }, 1100);
-        }, 450);
+    const bar = $("#splashBar"), pct = $("#splashPct"), title = $("#splashTitle"), wh = $("#splashWhisper"), eye = $("#splashEye"), rec = $("#recTime"), sp = $("#splash");
+    const fxc = $("#splashFx"), ghost = $("#splashGhost"), cut = sp.querySelector(".cut"), hint = $("#skipHint");
+    const base = title.textContent, glyphs = "█▓▒░#@%&?†✝", scary = settings.fx && !settings.calm && !calmMotion;
+    const total = scary ? 10000 + Math.random() * 5000 : 2800; // 10 à 15 s avec les effets
+    const W = fxc.width = Math.min(innerWidth, 900), H = fxc.height = Math.min(innerHeight, 1400), c = fxc.getContext("2d");
+    const STAGES = [[0, "Ouverture du portail..."], [10, "Réveil des âmes endormies..."], [25, "Quelque chose répond."], [40, "Ils t'ont senti."], [55, "Ne regarde pas derrière toi."], [70, "Ils sont déjà dans la pièce."], [85, "Tu n'aurais pas dû venir."], [95, "Trop tard."]];
+    const corrupt = (t, k) => [...t].map(ch => ch !== " " && Math.random() < k ? pick([...glyphs]) : ch).join("");
+    // progression par à-coups : la barre ralentit presque à l'arrêt dans trois fenêtres
+    const STALLS = [[.33, .42], [.60, .70], [.84, .92]], CUM = [0];
+    for (let i = 1; i <= 400; i++) { const x = i / 400, r = STALLS.some(([a, b]) => x > a && x < b) ? .05 : 1; CUM.push(CUM[i - 1] + r); }
+    const prog = x => CUM[Math.min(400, Math.max(0, Math.round(x * 400)))] / CUM[400];
+    const glow = (x, y, r, col) => { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col); g.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); };
+    const EV = {
+      eyes(n) { for (let i = 0; i < n; i++) { const x = Math.random() * W, y = Math.random() * H, s = (3 + Math.random() * 9) * (W / 400); for (const d of [-1, 1]) { glow(x + d * s * 2.4, y, s * 1.7, "rgba(255,40,40,.85)"); c.fillStyle = "#000"; c.fillRect(x + d * s * 2.4 - s * .13, y - s * .6, s * .26, s * 1.2); } } },
+      hand() {
+        const x = W * (.12 + Math.random() * .76), y = H * (.3 + Math.random() * .45), s = (46 + Math.random() * 40) * (W / 400);
+        c.save(); c.translate(x, y); c.rotate((Math.random() - .5) * .8); c.globalAlpha = .8;
+        const g = c.createLinearGradient(0, -s, 0, s * 1.8); g.addColorStop(0, "#a30c18"); g.addColorStop(1, "#3d0006"); c.fillStyle = g;
+        c.beginPath(); c.ellipse(0, s * .35, s * .55, s * .62, 0, 0, 7); c.fill();
+        [[-.62, -.38, -.34], [-.3, -.82, -.12], [0, -.92, 0], [.3, -.82, .12], [.6, -.4, .34]].forEach(([fx, fy, rot]) => { c.beginPath(); c.ellipse(fx * s, fy * s * .8, s * .13, s * .5, rot, 0, 7); c.fill(); });
+        c.beginPath(); c.ellipse(-s * .78, s * .5, s * .13, s * .42, -1.0, 0, 7); c.fill();
+        for (let i = 0; i < 6; i++) { const dx = (Math.random() - .5) * s * 1.1; c.fillRect(dx, s * .7, s * .035, s * (.3 + Math.random() * .9)); c.beginPath(); c.arc(dx + s * .017, s * (1 + Math.random() * .3), s * .05, 0, 7); c.fill(); }
+        c.restore();
+      },
+      cracks() {
+        const cx = W * (.3 + Math.random() * .4), cy = H * (.25 + Math.random() * .3);
+        c.strokeStyle = "rgba(235,235,245,.6)"; c.lineWidth = 1.2; c.shadowColor = "rgba(255,255,255,.6)"; c.shadowBlur = 4;
+        for (let i = 0; i < 18; i++) { let a = Math.random() * 7, x = cx, y = cy; const len = (120 + Math.random() * 380) * (W / 400); c.beginPath(); c.moveTo(x, y);
+          for (let j = 0; j < 9; j++) { a += (Math.random() - .5) * .7; x += Math.cos(a) * len / 9 * (.6 + Math.random() * .8); y += Math.sin(a) * len / 9 * (.6 + Math.random() * .8); c.lineTo(x, y); } c.stroke(); }
+        c.shadowBlur = 0;
       }
-    }, 120);
+    };
+    const fired = new Set(), once = (k, fn) => { if (!fired.has(k)) { fired.add(k); fn(); } };
+    const flicker = () => { [0, 90, 160, 300, 380].forEach((d, i) => setTimeout(() => { cut.style.opacity = i % 2 === 0 ? .9 : 0; }, d)); };
+    const ghostFace = () => { drawScare(ghost, "", "face"); ghost.style.opacity = .22; setTimeout(() => { ghost.style.opacity = 0; }, 1400); };
+    const t0 = performance.now(); let speed = 1, blink = 0, lastBlink = 0, fin = false, lastWh = 0, tSkip = t0;
+    sp.addEventListener("click", () => { if (performance.now() - t0 > 3500) speed = 9; });
+    function frame(now) {
+      if (fin) return;
+      const el = (now - t0) * speed, x = Math.min(1, el / total), p = prog(x) * 100, t = (now - t0) / 1000;
+      GL.k = p / 100;
+      bar.style.width = p + "%"; pct.textContent = Math.floor(p) + "%";
+      rec.textContent = "00:" + String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(Math.floor(t % 60)).padStart(2, "0");
+      if (blink <= 0 && Math.random() < .02 + p / 4000) blink = 5;
+      const open = Math.min(1, .06 + p / 100 * 1.15) * (blink > 0 ? Math.abs(blink - 2.5) / 2.5 : 1);
+      if (blink > 0 && now - lastBlink > 40) { blink--; lastBlink = now; }
+      if (now - lastBlink > 30 || blink === 0) drawEye(eye, open, t);
+      eye.style.animationDuration = (1.15 - p / 100 * .6).toFixed(2) + "s";
+      hint.classList.toggle("on", t > 5 && p < 95);
+      if (scary) {
+        const st = STAGES.filter(s => p >= s[0]).pop()[1];
+        if (now - lastWh > 450) { lastWh = now; wh.textContent = Math.random() < p / 220 ? corrupt(st, .35) : st; }
+        if (Math.random() < .004 + p / 9000) { title.textContent = corrupt(base, .12 + p / 400); setTimeout(() => { title.textContent = base; }, 120); }
+        if (p > 10) once("h1", () => { EV.hand(); ghostFace(); });
+        if (p > 25) once("e1", () => EV.eyes(3));
+        if (p > 40) once("h2", () => { EV.hand(); ghostFace(); });
+        if (p > 55) once("f1", flicker);
+        if (p > 62) once("e2", () => EV.eyes(8));
+        if (p > 74) once("h3", () => { EV.hand(); EV.hand(); });
+        if (p > 80) once("c1", () => { EV.cracks(); ghostFace(); });
+        if (p > 90) once("k1", () => {
+          cut.style.opacity = 1; EV.eyes(5);
+          setTimeout(() => { cut.style.opacity = 0; if (settings.scare !== "off") doScare({ test: true, text: "" }); }, 750);
+        });
+      } else wh.textContent = "";
+      if (x >= 1) {
+        fin = true; title.textContent = base; hint.classList.remove("on");
+        setTimeout(() => {
+          sp.classList.add("out");
+          show("menu");
+          setTimeout(() => { sp.remove(); glUpdate(); }, 1100);
+        }, scary ? 900 : 450);
+        return;
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
   })();
 
   /* ---------- Menu & changelog ---------- */
